@@ -1,0 +1,2053 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101820">
+  <title>Викинги и дробовики v0.14 Python — 3D-арена</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { color-scheme: dark; --ink:#eaf2ef; --muted:#a8b9b4; --copper:#f4ad62; --mint:#90f1cb; --panel:rgba(11,22,27,.9); }
+    * {box-sizing:border-box}
+    html,body {margin:0;width:100%;height:100%;overflow:hidden;background:#192d3a;color:var(--ink);font-family:Inter,"Segoe UI",Arial,sans-serif}
+    canvas { display:block;width:100vw;height:100vh;touch-action:none;cursor:crosshair; }
+    [hidden]{display:none!important}
+    #worldLabels {position:fixed;inset:0;pointer-events:none;overflow:hidden}
+    .world-label {position:absolute;min-width:94px;transform:translate(-50%,-50%);text-align:center;will-change:transform;filter:drop-shadow(0 2px 4px #000a)}
+    .world-name {font-size:12px;font-weight:800;text-shadow:0 2px 3px #000;letter-spacing:.02em;white-space:nowrap}
+    .world-health-bg {width:94px;height:8px;margin:4px auto 0;background:#121e25;border:1px solid #e1f6eb99;border-radius:6px;overflow:hidden}
+    .world-health-fill {height:100%;background:linear-gradient(90deg,#44ca89,#9af0ba);width:100%;transition:width .08s linear}
+    .world-label.dummy .world-name {color:#fff1c7}
+    .world-label.dummy .world-health-fill {background:linear-gradient(90deg,#e89f4b,#f4d171)}
+    #hud {position:fixed;inset:0;pointer-events:none;z-index:2}
+    #damageFlash {position:absolute;inset:0;pointer-events:none;opacity:0;z-index:1;background:radial-gradient(ellipse at 50% 48%,transparent 26%,#a81c2866 72%,#b40d25bb 100%);mix-blend-mode:screen;transition:opacity 45ms linear;}
+    #topbar {position:absolute;top:18px;left:22px;right:22px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .brand {display:flex;gap:10px;align-items:center;text-shadow:0 2px 14px #0008}
+    .brand-symbol {width:37px;height:37px;border:1px solid #ffdda0a0;border-radius:10px;display:grid;place-items:center;font-size:22px;background:#1c3339bc}
+    .brand-title {font-weight:900;font-size:14px;letter-spacing:.12em;text-transform:uppercase}
+    .brand-sub {font-size:11px;color:#c6dfd8;letter-spacing:.03em;margin-top:3px}
+    #connection {display:flex;align-items:center;gap:7px;padding:8px 11px;background:#10242abb;border:1px solid #c1fce343;border-radius:8px;font-size:12px;color:#d2e6df}
+    #dot {width:8px;height:8px;border-radius:50%;background:#d7a25a;box-shadow:0 0 0 3px #d7a25a24}
+    #dot.online {background:#67e4a4;box-shadow:0 0 0 3px #67e4a433}
+    #center-reticle {position:absolute;left:50%;top:50%;width:24px;height:24px;transform:translate(-50%,-50%)}
+    #center-reticle:before,#center-reticle:after {content:"";position:absolute;background:#e9f6eb;box-shadow:0 1px 4px #0008}
+    #center-reticle:before {left:11px;top:2px;width:2px;height:20px}
+    #center-reticle:after {top:11px;left:2px;height:2px;width:20px}
+    #hitSign {position:absolute;left:50%;top:calc(50% + 27px);transform:translateX(-50%);color:#f4df9d;font-weight:900;font-size:14px;text-shadow:0 2px 6px #000;opacity:0}
+    #hitSign.shown {opacity:1}
+    #charge {position:absolute;top:25%;left:50%;transform:translateX(-50%);padding:9px 16px;border:1px solid #ffd67a;border-radius:9px;background:#3b261acc;color:#ffe7aa;font-weight:900;letter-spacing:.13em;font-size:13px;text-shadow:0 2px 6px #000}
+    #bottom {position:absolute;bottom:26px;left:24px;right:24px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+    #healthPanel {width:min(330px,43vw);padding:14px 15px;background:#13252ecc;border:1px solid #d3fae04a;border-radius:13px;backdrop-filter:blur(6px)}
+    #healthTitle {display:flex;justify-content:space-between;align-items:center;font-weight:900;font-size:12px;letter-spacing:.11em;margin-bottom:10px}
+    #hpNumber {font-size:22px;letter-spacing:0;color:#a7f1cf}
+    #healthTrack {height:13px;background:#253b40;border-radius:8px;overflow:hidden;border:1px solid #d2f3d246}
+    #healthFill {height:100%;width:100%;border-radius:8px;background:linear-gradient(90deg,#51d593,#a1efd0);transition:width .1s linear}
+    #score {margin-top:10px;color:#adc9c1;font-size:11px;letter-spacing:.03em}
+    #weapons {display:flex;gap:8px;max-width:440px}
+    .weapon {min-width:142px;padding:11px 12px;background:#13252edb;border:1px solid #d3fae04a;border-radius:12px;backdrop-filter:blur(7px)}
+    .weapon span {display:block;color:#f4b671;font-size:11px;font-weight:900;letter-spacing:.10em;margin-bottom:6px}
+    .weapon strong {font-size:14px;display:block}
+    .weapon small {display:block;color:#b9cbc5;font-size:11px;line-height:1.35;margin-top:5px}
+    #feed {position:absolute;right:25px;top:90px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;font-size:12px;color:#fff2d6;text-shadow:0 2px 4px #000;max-width:360px}
+    #tip {position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:11px;color:#e0e8dcbd;text-shadow:0 2px 3px #000;white-space:nowrap}
+    #overlay {position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(150deg,#092027d9,#16252bd6 50%,#0e1b24e3);backdrop-filter:blur(9px)}
+    #menu {width:min(580px,100%);max-height:calc(100vh - 28px);overflow-y:auto;padding:34px;background:linear-gradient(145deg,#1d3439f4,#0d1e27f5);border:1px solid #b9d8bb4a;border-radius:21px;box-shadow:0 26px 100px #0009, inset 0 1px 0 #fff2}
+    .kicker {font-size:11px;font-weight:900;letter-spacing:.24em;color:var(--mint);text-transform:uppercase}
+    h1 {font-size:clamp(32px,6vw,51px);line-height:1.02;margin:15px 0 12px;font-weight:950;letter-spacing:-.045em;text-transform:uppercase}
+    h1 b{color:var(--copper)}
+    .lead {color:#b9c9c4;line-height:1.6;margin:0 0 22px;font-size:14px}
+    label {display:block;font-size:12px;font-weight:850;color:#d9ebe4;margin:0 0 8px}
+    input[type=text] {width:100%;padding:13px 14px;background:#07181ed4;border:1px solid #a9c4b15e;border-radius:10px;color:#edf8ef;font:inherit;font-size:14px;outline:none}
+    input[type=text]:focus {border-color:#9ceac6}
+    .sensitivity {margin:20px 0 22px;padding:15px;background:#091d22a3;border-radius:12px;border:1px solid #97baad29}
+    .sensitivity-head {display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px}
+    #sensitivityValue {font-variant-numeric:tabular-nums;color:#fee1a9;font-weight:800}
+    input[type=range] {width:100%;accent-color:#f4b271;cursor:pointer}
+    .actions {display:flex;flex-wrap:wrap;gap:10px}
+    button {border:none;border-radius:10px;padding:14px 17px;font:inherit;font-size:13px;font-weight:900;cursor:pointer}
+    button:focus-visible {outline:3px solid #85e7bf;outline-offset:3px}
+    .primary {background:linear-gradient(110deg,#f6bd75,#f0a05f);color:#1c211f;flex:1}
+    .secondary {background:#2f4d4d;color:#e7f4ea;border:1px solid #89baa164;flex:1}
+    #resume {background:#82e0b2;color:#132a28;width:100%;margin-top:9px}
+    #menuMessage {font-size:12px;color:#f5cb9d;min-height:15px;margin:12px 0 0}
+    .keys {margin-top:21px;padding-top:15px;border-top:1px solid #aac6b333;color:#b6c9c0;font-size:12px;line-height:1.9}
+    kbd {font-family:inherit;font-weight:800;padding:3px 6px;border:1px solid #a4b6b36d;border-bottom-width:2px;border-radius:5px;background:#253840;color:#e3f6eb}
+    #footerNote {font-size:11px;color:#899e9b;margin-top:14px;line-height:1.5}
+    .toggle-setting {display:flex;align-items:center;gap:10px;margin-top:14px;color:#d7e9e4;font-size:12px;cursor:pointer}
+    .toggle-setting input {width:18px;height:18px;accent-color:#f4b271}
+    .toggle-setting label {margin:0;cursor:pointer}
+    #game {transition:filter .6s ease}
+    body.is-dead #game {filter:grayscale(1) brightness(.48) contrast(1.15)}
+    #deathScreen {position:fixed;inset:0;z-index:5;pointer-events:none;display:grid;place-content:center;text-align:center;background:radial-gradient(ellipse,transparent,#070b11aa);animation:death-veil .55s ease both}
+    #deathTitle {margin:0;color:#f27860;font-size:clamp(42px,10vw,112px);font-weight:950;letter-spacing:.08em;text-shadow:0 6px 24px #000;animation:death-title .7s cubic-bezier(.16,1,.3,1) both}
+    #deathCaption {color:#eee;font-size:14px;letter-spacing:.08em;margin-top:16px}
+    #deathProgress {height:3px;background:#ffffff25;margin:20px auto;width:min(300px,70vw)}
+    #deathBar {height:100%;background:#f27860;width:100%}
+    @keyframes death-title {from{opacity:0;transform:translateY(22px);letter-spacing:.22em}to{opacity:1;transform:translateY(0);letter-spacing:.08em}}
+    @keyframes death-veil {from{opacity:0}to{opacity:1}}
+    @media(prefers-reduced-motion:reduce){#game{transition:none}#deathScreen,#deathTitle{animation:none}}
+    #roomCode {letter-spacing:.3em;font-variant-numeric:tabular-nums}
+    #networkOptions {margin:16px 0;padding:15px;border:1px solid #97baad55;border-radius:12px}
+    #networkOptions label:not(:first-child){margin-top:12px}
+    @media (max-width:620px) {
+      #menu {padding:23px 20px} #bottom {bottom:44px;left:12px;right:12px;gap:8px}
+      #healthPanel {width:44%;padding:10px} .weapon {min-width:0;padding:8px;width:50%} #weapons{width:54%;gap:5px}
+      .weapon strong{font-size:11px} .weapon small{font-size:10px} .weapon span{font-size:10px}
+      #tip{font-size:9px} #topbar{left:12px;right:12px} .brand-title{font-size:11px}
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="Трёхмерная игровая карта"></canvas>
+  <div id="worldLabels"></div>
+  <div id="hud" hidden>
+    <div id="damageFlash"></div>
+    <div id="topbar">
+      <div class="brand"><div class="brand-symbol">ᚦ</div><div><div class="brand-title">Викинги и дробовики</div><div class="brand-sub">3D · PvP · комнаты по коду</div></div></div>
+      <div id="connection"><i id="dot"></i><span id="connectionText">Тренировка</span></div>
+    </div>
+    <div id="center-reticle"></div><div id="hitSign">ПОПАДАНИЕ</div>
+    <div id="charge" hidden>⚡ ЗАРЯД ТОПОРА</div>
+    <div id="feed"></div>
+    <div id="bottom">
+      <div id="healthPanel"><div id="healthTitle"><span>ЗДОРОВЬЕ</span><b id="hpNumber">100 / 100</b></div><div id="healthTrack"><div id="healthFill"></div></div><div id="score">Убийства: 0 · Смерти: 0</div></div>
+      <div id="weapons">
+        <div class="weapon"><span>ЛКМ · ДРОБОВИК</span><strong>25 урона · 4 с / 1 с на полигоне</strong><small>45° по горизонтали<br>Индикатор попаданий + звук</small></div>
+        <div class="weapon"><span>ПКМ + ОБОРОТ 360° · ТОПОР</span><strong>50 / 25 · заряд 100 / 50</strong><small>Обычный удар: 50 по телу / 25 по щиту<br>Полный заряд: 100 / 50</small></div>
+      </div>
+    </div>
+    <div id="tip">WASD — движение · ПРОБЕЛ — прыжок · ЛКМ — дробовик · УДЕРЖ. ПКМ — заряд топора · ESC — настройки · K (офлайн) — экран смерти</div>
+  </div>
+  <div id="deathScreen" role="status" aria-live="polite" hidden>
+    <h2 id="deathTitle">ПОТРАЧЕНО</h2>
+    <div id="deathCaption">Возвращение в бой через <span id="deathTimer">2.1 с</span></div>
+    <div id="deathProgress"><div id="deathBar"></div></div>
+  </div>
+  <div id="overlay">
+    <div id="menu">
+      <div class="kicker">Играбельный сетевой прототип</div>
+      <h1>Викинги <b>и дробовики</b></h1>
+      <p class="lead">Арена с капсульными викингами, щитами на спине, дробовиком и топором. Теперь тут есть бороды, шлемы, три карты на выбор, заряд топора полным оборотом на 360°, резкий рубящий удар топора, искры от попадания в щит, отдача дробовика, реакция на урон и звуки шагов.</p>
+      <div id="firstOptions">
+        <label for="name">Имя викинга</label>
+        <input type="text" id="name" maxlength="18" autocomplete="nickname" value="Викинг" spellcheck="false">
+      </div>
+      <div class="sensitivity"><div class="sensitivity-head"><label for="sensitivity" style="margin:0">Чувствительность мыши</label><span id="sensitivityValue">0.50×</span></div><input id="sensitivity" type="range" min="0.10" max="2.00" value="0.65" step="0.05"><div class="toggle-setting"><input id="invertY" type="checkbox"><label for="invertY">Инвертировать мышь по вертикали (по умолчанию выключено)</label></div></div>
+      <div class="sensitivity"><div class="sensitivity-head"><label for="fov" style="margin:0">Угол обзора (вертикальный)</label><span id="fovValue">90°</span></div><input id="fov" type="range" min="60" max="120" step="1" value="90"></div>
+      <div class="sensitivity"><div class="sensitivity-head"><label for="soundVolume" style="margin:0">Общая громкость</label><span id="soundValue">75%</span></div><input id="soundVolume" type="range" min="0.00" max="1.00" value="0.75" step="0.05"><div class="sensitivity-head" style="margin-top:10px"><label for="sfxVolume" style="margin:0">Громкость эффектов</label><span id="sfxValue">90%</span></div><input id="sfxVolume" type="range" min="0.00" max="1.00" value="0.90" step="0.05"><div class="sensitivity-head" style="margin-top:10px"><label for="stepVolume" style="margin:0">Громкость шагов · стерео</label><span id="stepValue">90%</span></div><input id="stepVolume" type="range" min="0.00" max="1.00" value="0.90" step="0.05"></div>
+      <div id="networkOptions">
+        <label for="roomCode">Код комнаты — 4 цифры (до 5 игроков)</label>
+        <input type="text" id="roomCode" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="Например, 0427" autocomplete="off">
+        <div class="actions" style="margin-top:10px"><button class="secondary" id="createRoom">Создать комнату</button></div>
+        <details id="supabaseSettings" style="margin-top:12px" open><summary style="cursor:pointer;font-size:12px;color:#a7f1cf;font-weight:700">Настройки Supabase (URL и Anon Key)</summary>
+          <label for="sbUrl">Supabase Project URL</label>
+          <input type="text" id="sbUrl" placeholder="https://xyzcompany.supabase.co" spellcheck="false">
+          <label for="sbKey">Supabase Anon Key</label>
+          <input type="text" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." spellcheck="false">
+        </details>
+      </div>
+      <div class="sensitivity"><div class="sensitivity-head"><label for="mapSelect" style="margin:0">Карта</label><span id="mapLabel">Выбор перед стартом</span></div><select id="mapSelect" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #97baad55;background:#12262b;color:#f2f4ec;font:inherit"><option value="village">Разрушенная деревня</option><option value="towers">Башни</option><option value="training">Учебный полигон</option></select></div><div class="actions" id="startOptions"><button class="primary" id="online">Войти по коду</button><button class="secondary" id="offline">Тренировка офлайн</button></div>
+      <button id="resume" hidden>Вернуться в игру</button>
+      <p id="menuMessage"></p>
+      <div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — ходьба &nbsp; <kbd>Space</kbd> — прыжок<br><kbd>ЛКМ</kbd> — дробовик &nbsp; <kbd>Удерж. ПКМ</kbd> + вращение на 360° — заряд топора / отпусти для удара &nbsp; <kbd>ESC</kbd> — отпустить мышь</div>
+      <div id="footerNote">Мультиплеер до 5 человек работает через Supabase Realtime без Python-сервера. Вставь URL и Anon Key один раз, создай 4-значную комнату и передай код друзьям.</div>
+    </div>
+  </div>
+  <script>
+/* Shared gameplay constants and collision/hit detection. Runs in browsers and Node.js. */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.VS_RULES = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+  const PI = Math.PI;
+  const TAU = 2 * PI;
+  const PLAYER_HEIGHT = 2.0;
+  const PLAYER_RADIUS = 0.38;
+  const CAMERA_HEIGHT = 1.66;
+  const SHIELD_WIDTH = 1.06;
+  const SHIELD_HEIGHT = 1.65;
+  const MOVE_SPEED = 7.1;
+  const CHARGING_MOVE_SPEED = MOVE_SPEED * 1.20;
+  const JUMP_SPEED = 6.2;
+  const GRAVITY = 17;
+  const MAP_HALF = 24;
+  const DEFAULT_FOV_DEG = 120;
+
+  const SHOTGUN_DAMAGE = 25;
+  const SHOTGUN_RANGE = 16;
+  const SHOTGUN_HALF_ANGLE = PI / 8; // 45 degrees total.
+  const SHOTGUN_COOLDOWN = 4000;
+  const TRAINING_SHOTGUN_COOLDOWN = 1000;
+  const SHOTGUN_VERTICAL_ASSIST = 0.19;
+
+  // Two explicit damage tiers; the charged swing no longer ignores the shield.
+  const AXE_DAMAGE = 50;
+  const AXE_SHIELD_DAMAGE = 25;
+  const AXE_CHARGED_DAMAGE = 100;
+  const AXE_CHARGED_SHIELD_DAMAGE = 50;
+  const AXE_RANGE = CAMERA_HEIGHT * 1.5;
+  const AXE_HALF_ANGLE = PI / 3; // 120 degrees total.
+  const AXE_COOLDOWN = 680;
+  const AXE_CHARGE_WINDUP_MS = 0; // Rotating, not holding, earns the charge.
+  const AXE_CHARGE_HOLD_MS = 1000;
+  const AXE_SWING_ANIM_MS = 430;
+  const SHOTGUN_RECOIL_ANIM_MS = 360;
+  const HURT_ANIM_MS = 480;
+  const CHARGE_TURN_LIMIT = TAU / 0.4; // 360° per 0.4 second (radians/second).
+  const SHIELD_HALF_ANGLE = PI / 3; // 120 degrees at rest.
+  const SHIELD_SPIN_HALF_ANGLE = 5 * PI / 9; // 200 degrees while actively turning.
+  const SHIELD_SPIN_RATE = PI / 2; // More than 90° per second qualifies.
+  const SHIELD_SPIN_GRACE_MS = 220;
+  const BOT_SHOTGUN_COOLDOWN = 1850;
+
+  const DUMMY_RESPAWN_MS = 1350;
+  const PLAYER_RESPAWN_MS = 2100;
+
+  // Low stone perimeters around each tower: solid cover, with a 2.4 m
+  // entrance on the wall facing the central house. The pieces participate in
+  // the same collision and projectile-occlusion rules as other map blocks.
+  function towerPerimeterWalls(cx, cz) {
+    const reach = 4.25, thick = 0.55, height = 1.85;
+    const innerX = cx > 0 ? cx - reach : cx + reach;
+    const outerX = cx > 0 ? cx + reach : cx - reach;
+    const pieceLength = reach - 1.2;
+    const pieceOffset = (reach + 1.2) / 2;
+    return [
+      { x: cx, z: cz - reach, w: reach * 2, d: thick, h: height, kind: 'perimeter' },
+      { x: cx, z: cz + reach, w: reach * 2, d: thick, h: height, kind: 'perimeter' },
+      { x: outerX, z: cz, w: thick, d: reach * 2, h: height, kind: 'perimeter' },
+      { x: innerX, z: cz - pieceOffset, w: thick, d: pieceLength, h: height, kind: 'perimeter' },
+      { x: innerX, z: cz + pieceOffset, w: thick, d: pieceLength, h: height, kind: 'perimeter' }
+    ];
+  }
+
+  const MAPS = {
+    village: {
+      key: 'village', label: 'Разрушенная деревня',
+      spawns: [
+        { x: -18, z: 16 }, { x: 18, z: 16 }, { x: -18, z: -16 }, { x: 18, z: -16 },
+        { x: 0, z: 19 }, { x: 0, z: -22 }, { x: -20, z: 4 }, { x: 20, z: -4 },
+        { x: -10, z: 20 }, { x: 10, z: 20 }
+      ],
+      blocks: [
+        { x: -14, z: -10, w: 5.8, d: 5.0, h: 3.2, kind: 'hut' },
+        { x: 13, z: -9, w: 6.2, d: 5.2, h: 3.3, kind: 'hut' },
+        { x: -15, z: 10, w: 4.2, d: 4.2, h: 2.6, kind: 'ruin' },
+        { x: 15, z: 12, w: 4.6, d: 4.2, h: 2.8, kind: 'ruin' },
+        { x: 0, z: 0, w: 4.2, d: 8.4, h: 2.0, kind: 'wall' },
+        { x: -3, z: -18, w: 8.0, d: 1.8, h: 1.6, kind: 'fence' },
+        { x: 9, z: 18, w: 7.0, d: 1.8, h: 1.5, kind: 'fence' },
+        { x: -20, z: -2, w: 2.0, d: 7.0, h: 1.6, kind: 'cover' },
+        { x: 20, z: 3, w: 2.0, d: 7.0, h: 1.6, kind: 'cover' },
+        { x: -6, z: 12, w: 5.0, d: 4.0, h: 3.0, kind: 'house' },
+        { x: 6, z: -12, w: 5.4, d: 4.4, h: 3.0, kind: 'house' },
+        { x: -1, z: 16, w: 5.0, d: 2.0, h: 1.5, kind: 'cover' },
+        { x: 0, z: -6, w: 9.0, d: 2.0, h: 1.5, kind: 'cover' }
+      ],
+      dummies: [{ x: 0, z: -14, yaw: PI, path: null }],
+      ladders: []
+    },
+    towers: {
+      key: 'towers', label: 'Башни',
+      spawns: [
+        { x: -15, z: 0 }, { x: 15, z: 0 }, { x: 0, z: -15 }, { x: 0, z: 15 },
+        { x: -10, z: 13 }, { x: 10, z: 13 }, { x: -10, z: -13 }, { x: 10, z: -13 }
+      ],
+      blocks: [
+        { x: 0, z: 0, w: 7.0, d: 7.0, h: 3.0, kind: 'house' },
+        { x: -17, z: -17, w: 4.0, d: 4.0, h: 6.0, kind: 'tower' },
+        { x: 17, z: -17, w: 4.0, d: 4.0, h: 6.0, kind: 'tower' },
+        { x: -17, z: 17, w: 4.0, d: 4.0, h: 6.0, kind: 'tower' },
+        { x: 17, z: 17, w: 4.0, d: 4.0, h: 6.0, kind: 'tower' },
+        { x: -9, z: 0, w: 2.0, d: 6.0, h: 1.8, kind: 'cover' },
+        { x: 9, z: 0, w: 2.0, d: 6.0, h: 1.8, kind: 'cover' },
+        { x: 0, z: -10, w: 6.0, d: 2.0, h: 1.6, kind: 'cover' },
+        { x: 0, z: 10, w: 6.0, d: 2.0, h: 1.6, kind: 'cover' },
+        ...towerPerimeterWalls(-17, -17),
+        ...towerPerimeterWalls(17, -17),
+        ...towerPerimeterWalls(-17, 17),
+        ...towerPerimeterWalls(17, 17)
+      ],
+      ladders: [],
+      dummies: [{ x: 0, z: -13, yaw: PI, path: null }]
+    },
+    training: {
+      key: 'training', label: 'Учебный полигон',
+      spawns: [
+        { x: 0, z: 16 }, { x: -18, z: 11 }, { x: 14, z: 12 }, { x: -14, z: -12 }, { x: 11, z: -16 }, { x: 0, z: -16 }
+      ],
+      blocks: [
+        { x: -10, z: -4, w: 3.0, d: 5.0, h: 2.2, kind: 'cover' },
+        { x: 9, z: -3, w: 2.6, d: 4.5, h: 2.4, kind: 'cover' },
+        { x: -2, z: 6, w: 5.0, d: 2.0, h: 1.8, kind: 'cover' },
+        { x: 11, z: 11, w: 3.2, d: 3.2, h: 2.0, kind: 'cover' },
+        { x: -13, z: 12, w: 4.2, d: 1.8, h: 1.4, kind: 'cover' },
+        { x: 0, z: -12, w: 5.8, d: 1.8, h: 1.5, kind: 'cover' },
+        { x: 15, z: -10, w: 2.0, d: 5.0, h: 1.7, kind: 'cover' }
+      ],
+      ladders: [],
+      dummies: [
+        { x: -17, z: -15, yaw: PI / 2, path: { axis: 'x', amplitude: 4.2, speed: 1.7 } },
+        { x: 17, z: 0, yaw: -PI / 2, path: { axis: 'z', amplitude: 5.0, speed: 1.45 } },
+        { x: -1, z: 16, yaw: PI, path: { axis: 'x', amplitude: 5.2, speed: 1.95 } }
+      ]
+    }
+  };
+  const MAP_ORDER = Object.keys(MAPS);
+  let currentMap = 'village';
+
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const angleWrap = x => Math.atan2(Math.sin(x), Math.cos(x));
+  const forward = yaw => ({ x: Math.sin(yaw), z: -Math.cos(yaw) });
+  const distXZ = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+  function getMapData(name = currentMap) { return MAPS[name] || MAPS.village; }
+  function setMap(name) { currentMap = MAPS[name] ? name : 'village'; return currentMap; }
+  function getMap() { return currentMap; }
+  function getBlocks(name = currentMap) { return getMapData(name).blocks; }
+  function getSpawns(name = currentMap) { return getMapData(name).spawns; }
+  function randomSpawn(name = currentMap) {
+    const spawns = getSpawns(name);
+    const spawn = spawns[Math.floor(Math.random() * spawns.length)] || spawns[0] || { x: 0, z: 0 };
+    return { x: spawn.x, z: spawn.z };
+  }
+
+  function circleHitsBlock(x, z, footY, b, r = PLAYER_RADIUS) {
+    const dx = Math.max(Math.abs(x - b.x) - b.w / 2, 0);
+    const dz = Math.max(Math.abs(z - b.z) - b.d / 2, 0);
+    const segmentBottom = footY + r, segmentTop = footY + PLAYER_HEIGHT - r;
+    const dy = Math.max(0 - segmentTop, segmentBottom - b.h, 0);
+    return dx * dx + dy * dy + dz * dz < r * r;
+  }
+  function canOccupy(x, y, z, blocks = getBlocks()) {
+    if (Math.abs(x) > MAP_HALF - PLAYER_RADIUS || Math.abs(z) > MAP_HALF - PLAYER_RADIUS) return false;
+    return !blocks.some(b => circleHitsBlock(x, z, y, b));
+  }
+  function createBody(x = 0, z = 5.2, yaw = 0) {
+    return { x, y: 0, z, yaw, pitch: 0, vy: 0, grounded: true, chargingAxe: false };
+  }
+  function stepBody(p, input, dt, blocks = getBlocks()) {
+    dt = clamp(dt, 0, 0.05);
+    let sideways = Number(!!input.d) - Number(!!input.a);
+    let front = Number(!!input.w) - Number(!!input.s);
+    const magnitude = Math.hypot(sideways, front);
+    if (magnitude > 0) { sideways /= magnitude; front /= magnitude; }
+    const speed = input.chargedMove ? CHARGING_MOVE_SPEED : MOVE_SPEED;
+    const f = forward(p.yaw);
+    const rightX = -f.z, rightZ = f.x;
+    const dx = (rightX * sideways + f.x * front) * speed * dt;
+    const dz = (rightZ * sideways + f.z * front) * speed * dt;
+    if (input.space && p.grounded) { p.vy = JUMP_SPEED; p.grounded = false; }
+    if (canOccupy(p.x + dx, p.y, p.z, blocks)) p.x += dx;
+    if (canOccupy(p.x, p.y, p.z + dz, blocks)) p.z += dz;
+    const oldFeet = p.y;
+    p.vy -= GRAVITY * dt;
+    p.y += p.vy * dt;
+    p.grounded = false;
+    let floor = 0;
+    for (const b of blocks) {
+      const nearX = Math.abs(p.x - b.x) < b.w / 2 + PLAYER_RADIUS;
+      const nearZ = Math.abs(p.z - b.z) < b.d / 2 + PLAYER_RADIUS;
+      if (nearX && nearZ && oldFeet >= b.h - 0.045 && p.vy <= 0) floor = Math.max(floor, b.h);
+    }
+    if (p.y <= floor) { p.y = floor; p.vy = 0; p.grounded = true; }
+  }
+  function rayHitsBox(origin, direction, limit, b) {
+    let tmin = 0, tmax = limit;
+    const ranges = [
+      [origin.x, direction.x, b.x - b.w / 2, b.x + b.w / 2],
+      [origin.y, direction.y, 0, b.h],
+      [origin.z, direction.z, b.z - b.d / 2, b.z + b.d / 2]
+    ];
+    for (const [o, d, min, max] of ranges) {
+      if (Math.abs(d) < 1e-9) { if (o < min || o > max) return false; }
+      else {
+        let a = (min - o) / d, c = (max - o) / d;
+        if (a > c) [a, c] = [c, a];
+        tmin = Math.max(tmin, a); tmax = Math.min(tmax, c);
+        if (tmax < tmin) return false;
+      }
+    }
+    return tmax >= tmin;
+  }
+  function blockedLineOfSight(from, to, blocks = getBlocks()) {
+    const vx = to.x - from.x, vy = to.y - from.y, vz = to.z - from.z;
+    const distance = Math.hypot(vx, vy, vz);
+    if (distance < 1e-6) return false;
+    const dir = { x: vx / distance, y: vy / distance, z: vz / distance };
+    return blocks.some(b => rayHitsBox(from, dir, distance - 0.15, b));
+  }
+  function rayCapsuleHitDistance(origin, direction, maxDist, target) {
+    const radius = PLAYER_RADIUS;
+    const bottom = target.y + radius;
+    const top = target.y + PLAYER_HEIGHT - radius;
+    const ox = origin.x - target.x, oz = origin.z - target.z;
+    let closest = Infinity;
+    const a = direction.x ** 2 + direction.z ** 2;
+    const b = 2 * (ox * direction.x + oz * direction.z);
+    const c = ox * ox + oz * oz - radius * radius;
+    if (a > 1e-8) {
+      const disc = b * b - 4 * a * c;
+      if (disc >= 0) {
+        const root = Math.sqrt(disc);
+        for (const t of [(-b - root) / (2 * a), (-b + root) / (2 * a)]) {
+          if (t >= 0 && t <= maxDist) {
+            const y = origin.y + t * direction.y;
+            if (y >= bottom && y <= top) closest = Math.min(closest, t);
+          }
+        }
+      }
+    }
+    for (const cy of [bottom, top]) {
+      const rx = origin.x - target.x, ry = origin.y - cy, rz = origin.z - target.z;
+      const bSphere = 2 * (rx * direction.x + ry * direction.y + rz * direction.z);
+      const cSphere = rx * rx + ry * ry + rz * rz - radius * radius;
+      const disc = bSphere * bSphere - 4 * cSphere;
+      if (disc < 0) continue;
+      const root = Math.sqrt(disc);
+      for (const t of [(-bSphere - root) / 2, (-bSphere + root) / 2]) if (t >= 0 && t <= maxDist) closest = Math.min(closest, t);
+    }
+    return closest;
+  }
+  function rayIntersectsCapsule(origin, direction, maxDist, target) { return Number.isFinite(rayCapsuleHitDistance(origin, direction, maxDist, target)); }
+  function isShielded(target, attacker) {
+    const dx = attacker.x - target.x, dz = attacker.z - target.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-5) return false;
+    const bearingToAttacker = Math.atan2(dx, -dz);
+    const backYaw = target.yaw + PI;
+    const expanded = target.shieldWide === true || (target.shieldWideUntil || 0) > Date.now();
+    return Math.abs(angleWrap(bearingToAttacker - backYaw)) <= (expanded ? SHIELD_SPIN_HALF_ANGLE : SHIELD_HALF_ANGLE);
+  }
+  // World-space contact point on the front surface of the *rear* shield.
+  // Both offline impacts and server-authoritative multiplayer sparks use this.
+  function shieldImpactPoint(target) {
+    const f = forward(target.yaw);
+    return { x: target.x - f.x * 0.65, y: target.y + 1.17,
+      z: target.z - f.z * 0.65, nx: -f.x, nz: -f.z };
+  }
+  function pointToCapsuleDistance(point, target) {
+    const centerY = clamp(point.y, target.y + PLAYER_RADIUS, target.y + PLAYER_HEIGHT - PLAYER_RADIUS);
+    const dist = Math.hypot(point.x - target.x, point.y - centerY, point.z - target.z);
+    return Math.max(0, dist - PLAYER_RADIUS);
+  }
+  function inAttack(shooter, target, type, blocks = getBlocks()) {
+    if (!shooter || !target || !target.alive) return false;
+    const d = distXZ(shooter, target);
+    const isGun = type === 'shotgun';
+    const range = isGun ? SHOTGUN_RANGE : AXE_RANGE;
+    if (d > range + PLAYER_RADIUS || d < 0.001) return false;
+    const bearing = Math.atan2(target.x - shooter.x, -(target.z - shooter.z));
+    const halfAngle = isGun ? SHOTGUN_HALF_ANGLE : AXE_HALF_ANGLE;
+    const bodyAngle = Math.asin(Math.min(0.99, PLAYER_RADIUS / Math.max(d, PLAYER_RADIUS)));
+    const delta = angleWrap(bearing - shooter.yaw);
+    if (Math.abs(delta) > halfAngle + bodyAngle) return false;
+    if (!isGun && Math.abs((target.y + 1) - (shooter.y + 1)) > 1.8) return false;
+    const from = { x: shooter.x, y: shooter.y + CAMERA_HEIGHT, z: shooter.z };
+    if (!isGun && pointToCapsuleDistance(from, target) > AXE_RANGE) return false;
+    if (isGun) {
+      const rayYaw = shooter.yaw + clamp(delta, -halfAngle, halfAngle);
+      const aimPitch = shooter.pitch || 0;
+      const aimedY = from.y + Math.tan(aimPitch) * d;
+      const targetY = clamp(aimedY, target.y + 0.08, target.y + PLAYER_HEIGHT - 0.08);
+      const correctedPitch = Math.atan2(targetY - from.y, d);
+      if (Math.abs(aimPitch - correctedPitch) > SHOTGUN_VERTICAL_ASSIST) return false;
+      const direction = { x: Math.sin(rayYaw) * Math.cos(correctedPitch), y: Math.sin(correctedPitch), z: -Math.cos(rayYaw) * Math.cos(correctedPitch) };
+      const firstHit = rayCapsuleHitDistance(from, direction, SHOTGUN_RANGE, target);
+      if (!Number.isFinite(firstHit)) return false;
+      return !blocks.some(b => rayHitsBox(from, direction, Math.max(0, firstHit - 0.015), b));
+    }
+    const to = { x: target.x, y: target.y + 1.1, z: target.z };
+    return !blockedLineOfSight(from, to, blocks);
+  }
+  function shotgunCooldownForMap(map = currentMap) {
+    return map === 'training' ? TRAINING_SHOTGUN_COOLDOWN : SHOTGUN_COOLDOWN;
+  }
+  // Progress is signed: wiggling a mouse left and right doesn't count as a 360° rotation.
+  function addChargeTurn(state, yawDelta, now) {
+    if (!state || !state.chargingAxe || state.chargeCompleted) return false;
+    state.chargeRotation = (state.chargeRotation || 0) + yawDelta;
+    if (Math.abs(state.chargeRotation) < TAU) return false;
+    state.chargeCompleted = true;
+    state.chargedUntil = now + AXE_CHARGE_HOLD_MS;
+    return true;
+  }
+  function startCharge(state) {
+    state.chargingAxe = true;
+    state.chargeRotation = 0;
+    state.chargeCompleted = false;
+    state.chargedUntil = 0;
+  }
+  function stopCharge(state) {
+    state.chargingAxe = false;
+    state.chargeRotation = 0;
+  }
+  function makeShooterBot() {
+    return {
+      ...createBody(16, 4, PI), id: 'bot1', name: 'Стрелок', kind: 'bot',
+      hp: 100, alive: true, kills: 0, deaths: 0, respawnAt: 0,
+      shotgunReadyAt: 0, nextShotAt: 0, chargingAxe: false, shieldWideUntil: 0
+    };
+  }
+  // Steer, approach and fire without seeing through cover. Shared offline/LAN logic.
+  function updateShooterBot(bot, players, now, dt, blocks = getBlocks()) {
+    if (!bot.alive) return null;
+    const available = players.filter(p => p.alive && p.kind === 'player' && p.id !== bot.id);
+    if (!available.length) return null;
+    const target = available.reduce((a,b) => distXZ(bot,a) < distXZ(bot,b) ? a : b);
+    const dist = distXZ(bot, target);
+    bot.yaw = Math.atan2(target.x - bot.x, -(target.z - bot.z));
+    bot.pitch = Math.atan2(target.y - bot.y, Math.max(.1,dist));
+    const axeHit = inAttack(bot, target, 'axe', blocks);
+    const canFire = dist <= SHOTGUN_RANGE && inAttack(bot, target, 'shotgun', blocks);
+    const oldX=bot.x, oldZ=bot.z;
+    stepBody(bot, dist > 1.7 ? {w:true} : {}, dt, blocks);
+    // Slide around cover instead of permanently walking into it.
+    if (dist > 1.7 && Math.hypot(bot.x-oldX,bot.z-oldZ) < MOVE_SPEED*dt*.25) {
+      stepBody(bot, {d: Number(String(bot.id).replace(/\D/g,'')) % 2 === 0,
+        a: Number(String(bot.id).replace(/\D/g,'')) % 2 !== 0}, dt, blocks);
+    }
+    if (axeHit && now >= (bot.nextAxeAt || 0)) {
+      bot.nextAxeAt = now + 1100;
+      bot.attackWeapon = 'axe';
+      return target;
+    }
+    if (canFire && !axeHit && now >= (bot.nextShotAt || 0)) {
+      bot.nextShotAt = now + BOT_SHOTGUN_COOLDOWN;
+      bot.shotgunReadyAt = bot.nextShotAt;
+      bot.attackWeapon = 'shotgun';
+      return target;
+    }
+    return null;
+  }
+  function damageFor(type, shielded, charged = false) {
+    if (type === 'shotgun') return shielded ? 0 : SHOTGUN_DAMAGE;
+    if (type === 'axe') {
+      if (charged) return shielded ? AXE_CHARGED_SHIELD_DAMAGE : AXE_CHARGED_DAMAGE;
+      return shielded ? AXE_SHIELD_DAMAGE : AXE_DAMAGE;
+    }
+    return 0;
+  }
+
+  // Pure, time-based procedural animation curves. They animate only the visible
+  // models; the physical capsule and the authoritative hitboxes never move.
+  const emptyPose = () => ({ x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 });
+  const smooth = n => { const t = clamp(n, 0, 1); return t * t * (3 - 2 * t); };
+  function poseTrack(age, duration, frames) {
+    if (age < 0 || age >= duration) return emptyPose();
+    const t = clamp(age / duration, 0, 1);
+    for (let i = 1; i < frames.length; i++) {
+      const [t1, pose1] = frames[i];
+      if (t > t1) continue;
+      const [t0, pose0] = frames[i - 1];
+      const f = smooth((t - t0) / (t1 - t0));
+      const out = emptyPose();
+      for (const k of Object.keys(out)) out[k] = (pose0[k] || 0) * (1 - f) + (pose1[k] || 0) * f;
+      return out;
+    }
+    return emptyPose();
+  }
+  function axeSwingPose(elapsedMs) {
+    // Almost all motion is pitch about the player's left-hand grip. No side-to-side
+    // flailing of the haft: lift high, then chop hard over ~70 ms.
+    return poseTrack(elapsedMs, AXE_SWING_ANIM_MS, [
+      [0, {}],
+      [0.31, { x: -0.015, y: 0.29, z: 0.09, rx: -1.42, ry: -0.035, rz: -0.035 }],
+      [0.48, { x: 0.015, y: -0.26, z: -0.31, rx: 1.47, ry: 0.035, rz: 0.04 }],
+      [0.60, { x: 0.012, y: -0.24, z: -0.30, rx: 1.42, ry: 0.02, rz: 0.03 }],
+      [0.76, { x: 0.005, y: -0.12, z: -0.15, rx: 0.52, ry: 0.01, rz: 0.015 }],
+      [1, {}]
+    ]);
+  }
+  function shotgunRecoilPose(elapsedMs) {
+    return poseTrack(elapsedMs, SHOTGUN_RECOIL_ANIM_MS, [
+      [0, {}],
+      [0.13, { y: 0.06, z: 0.26, rx: 0.21, rz: -0.05 }], // recoil back / muzzle up
+      [0.38, { y: -0.03, z: 0.10, rx: -0.055, rz: 0.02 }],
+      [1, {}]
+    ]);
+  }
+  function axeChargePose(elapsedMs) {
+    if (elapsedMs < 0) return emptyPose();
+    const intensity = smooth(elapsedMs / 170);
+    const wave = elapsedMs / 1000;
+    return { x: 0.018 * Math.sin(wave * 14) * intensity,
+      y: 0.025 * Math.sin(wave * 10) * intensity,
+      z: -0.012 * Math.sin(wave * 9) * intensity,
+      rx: 0.035 * Math.sin(wave * 8) * intensity,
+      ry: 0.020 * Math.sin(wave * 7) * intensity,
+      rz: 0.055 * Math.sin(wave * 12) * intensity };
+  }
+  function hurtPose(elapsedMs) {
+    if (elapsedMs < 0 || elapsedMs >= HURT_ANIM_MS) return { lean: 0, dip: 0, flash: 0, cameraKick: 0, overlay: 0 };
+    const phase = elapsedMs / HURT_ANIM_MS;
+    const impact = Math.sin(PI * phase) * (1 - phase);
+    return {
+      lean: 0.18 * impact, dip: -0.095 * impact,
+      flash: 0.90 * (1 - smooth(elapsedMs / 250)),
+      cameraKick: -0.042 * Math.sin(PI * phase) * (1 - phase),
+      overlay: 0.50 * (1 - smooth(elapsedMs / HURT_ANIM_MS))
+    };
+  }
+  function makeDummy(spec = null, index = 1) {
+    if (!spec) spec = getMapData().dummies[0] || { x: 0, z: -8, yaw: PI, path: null };
+    const body = createBody(spec.x, spec.z, spec.yaw || 0);
+    return {
+      id: 'dummy' + index, name: 'Болванка ' + index, kind: 'dummy', ...body,
+      hp: 100, alive: true, kills: 0, deaths: 0, respawnAt: 0,
+      baseX: spec.x, baseZ: spec.z, path: spec.path || null, phase: Math.random() * 10,
+      combatant: !!spec.path, nextShotAt: 0, nextAxeAt: 0, shotgunReadyAt: 0, shieldWideUntil: 0
+    };
+  }
+  function makeDummiesForMap(name = currentMap) {
+    return getMapData(name).dummies.map((d, i) => makeDummy(d, i + 1));
+  }
+  function updateDummy(dummy, now, dt) {
+    if (!dummy.path) return;
+    const phase = now / 1000 * dummy.path.speed + (dummy.phase || 0);
+    const value = Math.sin(phase) * dummy.path.amplitude;
+    if (dummy.path.axis === 'x') {
+      dummy.x = dummy.baseX + value;
+      dummy.z = dummy.baseZ;
+      dummy.yaw = value >= 0 ? PI / 2 : -PI / 2;
+    } else {
+      dummy.z = dummy.baseZ + value;
+      dummy.x = dummy.baseX;
+      dummy.yaw = value >= 0 ? PI : 0;
+    }
+  }
+
+  // Backward-compatible aliases used by older tests/client code.
+  const BLOCKS = getBlocks();
+  const SPAWNS = getSpawns();
+  const DUMMY_POSITION = { x: getMapData().dummies[0]?.x || 0, y: 0, z: getMapData().dummies[0]?.z || -8.5, yaw: getMapData().dummies[0]?.yaw || PI, pitch: 0 };
+
+  return {
+    PI, TAU, PLAYER_HEIGHT, PLAYER_RADIUS, CAMERA_HEIGHT, SHIELD_WIDTH, SHIELD_HEIGHT,
+    MOVE_SPEED, CHARGING_MOVE_SPEED, JUMP_SPEED, GRAVITY, MAP_HALF, DEFAULT_FOV_DEG,
+    SHOTGUN_DAMAGE, SHOTGUN_RANGE, SHOTGUN_HALF_ANGLE, SHOTGUN_COOLDOWN, TRAINING_SHOTGUN_COOLDOWN, SHOTGUN_VERTICAL_ASSIST,
+    AXE_DAMAGE, AXE_SHIELD_DAMAGE, AXE_CHARGED_DAMAGE, AXE_CHARGED_SHIELD_DAMAGE,
+    AXE_RANGE, AXE_HALF_ANGLE, AXE_COOLDOWN, AXE_CHARGE_WINDUP_MS, AXE_CHARGE_HOLD_MS, CHARGE_TURN_LIMIT,
+    AXE_SWING_ANIM_MS, SHOTGUN_RECOIL_ANIM_MS, HURT_ANIM_MS,
+    axeSwingPose, shotgunRecoilPose, axeChargePose, hurtPose,
+    SHIELD_HALF_ANGLE, SHIELD_SPIN_HALF_ANGLE, SHIELD_SPIN_RATE, SHIELD_SPIN_GRACE_MS, BOT_SHOTGUN_COOLDOWN, DUMMY_RESPAWN_MS, PLAYER_RESPAWN_MS,
+    MAPS, MAP_ORDER, BLOCKS, SPAWNS, DUMMY_POSITION,
+    clamp, angleWrap, forward, distXZ, setMap, getMap, getMapData, getBlocks, getSpawns, randomSpawn,
+    circleHitsBlock, canOccupy, createBody, stepBody, rayHitsBox, rayCapsuleHitDistance, rayIntersectsCapsule,
+    pointToCapsuleDistance, blockedLineOfSight, isShielded, shieldImpactPoint, inAttack, damageFor,
+    shotgunCooldownForMap, addChargeTurn, startCharge, stopCharge, makeShooterBot, updateShooterBot, makeDummy, makeDummiesForMap, updateDummy
+  };
+});
+
+</script>
+  <script>
+// Python edition connects to the same server that serves the page.
+window.VS_CONFIG = {};
+
+</script>
+  <script>
+/* Vikings & Shotguns: self-contained WebGL 3D renderer and browser game client. */
+(() => {
+'use strict';
+const R = globalThis.VS_RULES;
+const $ = id => document.getElementById(id);
+const canvas = $('game');
+const ui = {
+  overlay: $('overlay'), hud: $('hud'), first: $('firstOptions'), start: $('startOptions'),
+  resume: $('resume'), message: $('menuMessage'), name: $('name'), sensitivity: $('sensitivity'),
+  sensitivityValue: $('sensitivityValue'), connection: $('connectionText'), dot: $('dot'),
+  hp: $('hpNumber'), hpFill: $('healthFill'), score: $('score'), feed: $('feed'),
+  charge: $('charge'), hit: $('hitSign'), labels: $('worldLabels'),
+  invertY: $('invertY'), death: $('deathScreen'), deathTimer: $('deathTimer'), deathBar: $('deathBar'),
+  sound: $('soundVolume'), soundValue: $('soundValue'), sfx: $('sfxVolume'), sfxValue: $('sfxValue'),
+  map: $('mapSelect'), damageFlash: $('damageFlash'),
+  steps: $('stepVolume'), stepsValue: $('stepValue')
+};
+let gl = null, renderer = null, sbClient = null, sbChannel = null, sbHeartbeat = null, sbLastBroadcast = 0;
+let mode = null, myId = null, started = false, firstServerSnapshot = true;
+const MAX_ROOM_PLAYERS = 5;
+let currentMapKey = storageRead('vs_map', 'village'); R.setMap(currentMapKey);
+let __sp=R.randomSpawn(currentMapKey); let local = { ...R.createBody(__sp.x,__sp.z), hp: 100, alive: true, kills: 0, deaths: 0, charged: false };
+let remote = new Map();
+let dummies = R.makeDummiesForMap(currentMapKey);
+let shooterBot = currentMapKey === 'training' ? R.makeShooterBot() : null;
+let keyState = {w:false,a:false,s:false,d:false,space:false,charge:false};
+let sense = 0.65, lastFrame = performance.now(), lastInputSend = 0, lastAttack = { shotgun:-Infinity, axe:-Infinity };
+let localChargeUntil = 0, feedbackUntil = 0, feedbackText = '', feedbackKind = 'miss';
+let pendingReload = 0, lastShotId = 0;
+let deathUntil = 0, deathDuration = R.PLAYER_RESPAWN_MS;
+let viewProjection = null, viewMatrix = null, currentEye = [0, 1.66, 5];
+let labelElements = new Map();
+let masterVolume = 0.75, sfxVolume = 0.9, audioCtx = null, footstepState = new Map();
+let shotgunReadyUntil = 0, axeCharging = false, axeChargeStart = 0, axeChargeGiven = false;
+let axeRotation = 0, previousTurnYaw = 0, lastMouseTurnAt = performance.now();
+let footstepVolume = 0.90;
+let localChargeNoiseStop = null, fovDeg = 90;
+// Client-side timestamps drive smooth procedural animations at actual display FPS.
+let axeSwingAt = -Infinity, shotgunShotAt = -Infinity, localHurtAt = -Infinity;
+const hurtSince = new Map();
+const remoteActions = new Map();
+const shieldSparkBursts = []; // Ephemeral WebGL particles, not network objects.
+
+function storageRead(k, fallback) { try { return localStorage.getItem(k) || fallback; } catch (_) { return fallback; } }
+function storageSave(k, value) { try { localStorage.setItem(k, String(value)); } catch (_) {} }
+fovDeg = Number(storageRead('vs_fov', '90'));
+if (!Number.isFinite(fovDeg)) fovDeg = 90;
+fovDeg = R.clamp(fovDeg,60,120);
+$('fov').value = String(fovDeg);
+$('fovValue').textContent = fovDeg+'°';
+$('fov').addEventListener('input',()=>{
+  fovDeg = R.clamp(Number($('fov').value),60,120);
+  $('fovValue').textContent = fovDeg+'°';
+  storageSave('vs_fov',fovDeg);
+});
+ui.name.value = storageRead('vs_name', 'Викинг');
+sense = Number(storageRead('vs_sensitivity', '0.65'));
+if (!Number.isFinite(sense)) sense = 0.65;
+sense = R.clamp(sense, 0.1, 2);
+ui.sensitivity.value = String(sense);
+ui.sensitivityValue.textContent = sense.toFixed(2) + '×';
+ui.sensitivity.addEventListener('input', () => {
+  sense = Number(ui.sensitivity.value);
+  ui.sensitivityValue.textContent = sense.toFixed(2) + '×';
+  storageSave('vs_sensitivity', sense);
+});
+ui.name.addEventListener('input', () => storageSave('vs_name', ui.name.value));
+
+if (ui.map) {
+  if (R.MAPS[currentMapKey]) ui.map.value = currentMapKey;
+  ui.map.addEventListener('change', () => {
+    currentMapKey = ui.map.value;
+    storageSave('vs_map', currentMapKey);
+  });
+}
+ui.invertY.checked = storageRead('vs_invert_y', 'false') === 'true';
+ui.invertY.addEventListener('change', () => storageSave('vs_invert_y', ui.invertY.checked));
+masterVolume = Number(storageRead('vs_master_volume', '0.75'));
+sfxVolume = Number(storageRead('vs_sfx_volume', '0.90'));
+if (!Number.isFinite(masterVolume)) masterVolume = 0.75;
+if (!Number.isFinite(sfxVolume)) sfxVolume = 0.90;
+if (ui.sound) {
+  ui.sound.value = String(masterVolume);
+  ui.soundValue.textContent = Math.round(masterVolume * 100) + '%';
+  ui.sound.addEventListener('input', () => {
+    masterVolume = Number(ui.sound.value);
+    ui.soundValue.textContent = Math.round(masterVolume * 100) + '%';
+    storageSave('vs_master_volume', masterVolume);
+  });
+}
+if (ui.sfx) {
+  ui.sfx.value = String(sfxVolume);
+  ui.sfxValue.textContent = Math.round(sfxVolume * 100) + '%';
+  ui.sfx.addEventListener('input', () => {
+    sfxVolume = Number(ui.sfx.value);
+    ui.sfxValue.textContent = Math.round(sfxVolume * 100) + '%';
+    storageSave('vs_sfx_volume', sfxVolume);
+  });
+}
+footstepVolume = R.clamp(Number(storageRead('vs_step_volume', '0.90')) || 0, 0, 1);
+if (ui.steps) {
+  ui.steps.value = String(footstepVolume);
+  ui.stepsValue.textContent = Math.round(footstepVolume * 100) + '%';
+  ui.steps.addEventListener('input', () => {
+    footstepVolume = Number(ui.steps.value);
+    ui.stepsValue.textContent = Math.round(footstepVolume * 100) + '%';
+    storageSave('vs_step_volume', footstepVolume);
+  });
+}
+
+function ensureAudio() {
+  if (audioCtx) return audioCtx;
+  const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
+  if (!Ctx) return null;
+  audioCtx = new Ctx();
+  return audioCtx;
+}
+function soundGain(base = 1) { return Math.max(0, Math.min(1.25, base * masterVolume * sfxVolume)); }
+function spatialVolume(pos, base = 1) {
+  const dx = pos.x - local.x, dy = (pos.y || 0) - local.y, dz = pos.z - local.z;
+  const d = Math.hypot(dx, dy, dz);
+  return soundGain(base * Math.max(0, 1 - d / 28));
+}
+function stereoPan(pos) {
+  const dx = pos.x - local.x, dz = pos.z - local.z;
+  const f = R.forward(local.yaw);
+  const rightX = -f.z, rightZ = f.x;
+  return R.clamp((dx * rightX + dz * rightZ) / Math.max(.3,Math.hypot(dx,dz)), -1, 1);
+}
+function playTone(type, freq, duration, volume, when = 0, target = null) {
+  const ctx = ensureAudio(); if (!ctx || volume <= 0.001) return;
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type; osc.frequency.setValueAtTime(freq, ctx.currentTime + when);
+  gain.gain.setValueAtTime(0.0001, ctx.currentTime + when);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), ctx.currentTime + when + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + when + duration);
+  if (target) {
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = stereoPan(target);
+    osc.connect(gain).connect(pan).connect(ctx.destination);
+  } else osc.connect(gain).connect(ctx.destination);
+  osc.start(ctx.currentTime + when);
+  osc.stop(ctx.currentTime + when + duration + 0.03);
+}
+function playNoise(duration, volume, target = null, lowpass = 1400) {
+  const ctx = ensureAudio(); if (!ctx || volume <= 0.001) return () => {};
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(duration * ctx.sampleRate)), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.7;
+  const src = ctx.createBufferSource(); src.buffer = buffer;
+  const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = lowpass;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(Math.max(0.0001, volume), ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+  if (target) {
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = stereoPan(target);
+    src.connect(filter).connect(gain).connect(pan).connect(ctx.destination);
+  } else src.connect(filter).connect(gain).connect(ctx.destination);
+  src.start(); src.stop(ctx.currentTime + duration + 0.02);
+  return () => { try { src.stop(); } catch (_) {} };
+}
+function playStep(target = null, heavy = false) {
+  // ~20 dB stronger than the old step mix; use inverse-square falloff and
+  // camera-relative stereo placement so listeners can locate a runner by ear.
+  let distanceGain = 1;
+  if (target) {
+    const d = Math.hypot(target.x - local.x, (target.y || 0) - local.y, target.z - local.z);
+    distanceGain = 1 / (1 + (d / 9) * (d / 9));
+    if (d > 45) return;
+  }
+  const vol = R.clamp((heavy ? 1.35 : 1.2) * masterVolume * sfxVolume * footstepVolume * distanceGain, 0, 1.25);
+  playNoise(0.075, vol, target, heavy ? 720 : 560);
+  playTone('triangle', heavy ? 95 : 120, 0.086, vol * 0.55, 0, target);
+}
+function playShotgunFire(target = null) {
+  const vol = target ? spatialVolume(target, 0.38) : soundGain(0.46);
+  playNoise(0.18, vol, target, 1800);
+  playTone('sawtooth', 160, 0.11, vol * 0.35, 0, target);
+  playTone('square', 80, 0.18, vol * 0.2, 0.01, target);
+}
+function playHitSound(kind, target = null) {
+  const vol = target ? spatialVolume(target, 0.28) : soundGain(0.3);
+  if (kind === 'shotgun-face') { playTone('square', 680, 0.08, vol); playTone('triangle', 420, 0.10, vol * 0.45, 0.02); }
+  else if (kind === 'shotgun-shield') { playTone('square', 250, 0.08, vol); playTone('triangle', 170, 0.11, vol * 0.5, 0.02); }
+  else if (kind === 'axe-face') { playNoise(0.09, vol, target, 1200); playTone('sawtooth', 220, 0.11, vol * 0.45, 0.01, target); }
+  else if (kind === 'axe-shield') { playTone('square', 190, 0.08, vol, 0, target); playTone('square', 260, 0.08, vol * 0.45, 0.04, target); }
+}
+function startChargeHum() {
+  if (localChargeNoiseStop) localChargeNoiseStop();
+  localChargeNoiseStop = playNoise(0.25, soundGain(0.06), null, 900);
+  playTone('sine', 240, 0.24, soundGain(0.035));
+}
+function stopChargeHum() { if (localChargeNoiseStop) { localChargeNoiseStop(); localChargeNoiseStop = null; } }
+
+// Matrices: column-major as required by WebGL.
+const M = {
+  identity() { return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); },
+  multiply(a, b) {
+    const out = new Float32Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+      out[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+    }
+    return out;
+  },
+  translate(x,y,z) { const m = M.identity();m[12]=x;m[13]=y;m[14]=z;return m; },
+  scale(x,y,z) { const m = M.identity();m[0]=x;m[5]=y;m[10]=z;return m; },
+  ry(a) { const m=M.identity(),c=Math.cos(a),s=Math.sin(a);m[0]=c;m[2]=s;m[8]=-s;m[10]=c;return m; },
+  rx(a) { const m=M.identity(),c=Math.cos(a),s=Math.sin(a);m[5]=c;m[6]=s;m[9]=-s;m[10]=c;return m; },
+  rz(a) { const m=M.identity(),c=Math.cos(a),s=Math.sin(a);m[0]=c;m[1]=s;m[4]=-s;m[5]=c;return m; },
+  perspective(fov, aspect, near, far) {
+    const f=1/Math.tan(fov/2), m=new Float32Array(16);
+    m[0]=f/aspect;m[5]=f;m[10]=(far+near)/(near-far);m[11]=-1;m[14]=(2*far*near)/(near-far);
+    return m;
+  },
+  transform(m, p) {
+    const [x,y,z,w=1]=p;
+    return [m[0]*x+m[4]*y+m[8]*z+m[12]*w,
+      m[1]*x+m[5]*y+m[9]*z+m[13]*w,
+      m[2]*x+m[6]*y+m[10]*z+m[14]*w,
+      m[3]*x+m[7]*y+m[11]*z+m[15]*w];
+  }
+};
+function multi(...matrices) { return matrices.reduce((a,b)=>M.multiply(a,b), M.identity()); }
+
+function makeMesh(positions, normals, indices=null, mode=null) {
+  const mesh = { n: indices ? indices.length : positions.length / 3, indexed: !!indices, mode: mode || gl.TRIANGLES };
+  mesh.p = gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,mesh.p);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(positions),gl.STATIC_DRAW);
+  mesh.norm = gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,mesh.norm);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(normals),gl.STATIC_DRAW);
+  if(indices) {
+    mesh.i=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.i);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);
+  }
+  return mesh;
+}
+function makeBox() {
+  const p=[], n=[], idx=[];
+  const faces = [
+    [[1,0,0],[[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]]],
+    [[-1,0,0],[[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]]],
+    [[0,1,0],[[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]]],
+    [[0,-1,0],[[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]]],
+    [[0,0,1],[[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]]],
+    [[0,0,-1],[[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]]]
+  ];
+  for (const [normal,corners] of faces) {
+    const start=p.length/3;
+    for (const pt of corners) {p.push(...pt.map(x=>x/2));n.push(...normal);}
+    idx.push(start,start+1,start+2,start,start+2,start+3);
+  }
+  return makeMesh(p,n,idx);
+}
+function makeRoof() {
+  const p=[], n=[];
+  const A=[-.5,0,-.5],B=[.5,0,-.5],C=[-.5,0,.5],D=[.5,0,.5],E=[-.5,1,0],F=[.5,1,0];
+  for(const [a,b,c] of [[A,B,F],[A,F,E],[C,E,F],[C,F,D],[A,E,C],[B,D,F],[A,C,D],[A,D,B]]) {
+    const u=b.map((v,i)=>v-a[i]),v=c.map((x,i)=>x-a[i]);
+    const normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+    const length=Math.hypot(...normal);
+    for(const vertex of [a,b,c]){p.push(...vertex);n.push(...normal.map(x=>x/length));}
+  }
+  return makeMesh(p,n);
+}
+function makeCapsule() {
+  const r=R.PLAYER_RADIUS, lower=r, upper=R.PLAYER_HEIGHT-r;
+  const rows=[], rads=[];
+  const steps=10;
+  for(let j=0;j<=steps;j++) {
+    const theta=-Math.PI/2+(j/steps)*Math.PI/2;
+    rows.push(lower+r*Math.sin(theta));rads.push(r*Math.cos(theta));
+  }
+  rows.push(upper);rads.push(r);
+  for(let j=1;j<=steps;j++) {
+    const theta=(j/steps)*Math.PI/2;
+    rows.push(upper+r*Math.sin(theta));rads.push(r*Math.cos(theta));
+  }
+  const p=[],n=[],idx=[],segments=20;
+  for(let j=0;j<rows.length;j++) for(let i=0;i<=segments;i++) {
+    const angle=i/segments*Math.PI*2,s=Math.sin(angle),c=Math.cos(angle);
+    p.push(s*rads[j],rows[j],c*rads[j]);
+    if(j<=steps) {
+      const theta=-Math.PI/2+j/steps*Math.PI/2;
+      n.push(s*Math.cos(theta),Math.sin(theta),c*Math.cos(theta));
+    } else if(j===steps+1) n.push(s,0,c);
+    else {const theta=(j-steps-1)/steps*Math.PI/2;n.push(s*Math.cos(theta),Math.sin(theta),c*Math.cos(theta));}
+  }
+  for(let j=0;j<rows.length-1;j++) for(let i=0;i<segments;i++) {
+    const a=j*(segments+1)+i,b=(j+1)*(segments+1)+i;
+    idx.push(a,b,a+1,b,b+1,a+1);
+  }
+  return makeMesh(p,n,idx);
+}
+function makeCylinder(radius=.5, height=1, segments=16) {
+  const p=[],n=[],idx=[];
+  for(let i=0;i<=segments;i++) {
+    const a=i*Math.PI*2/segments, x=Math.cos(a),z=Math.sin(a);
+    p.push(radius*x,-height/2,radius*z, radius*x,height/2,radius*z);
+    n.push(x,0,z,x,0,z);
+  }
+  for(let i=0;i<segments;i++) {
+    const a=i*2;idx.push(a,a+1,a+2,a+2,a+1,a+3);
+  }
+  for(const top of [false,true]) {
+    const center=p.length/3;p.push(0,top?height/2:-height/2,0);n.push(0,top?1:-1,0);
+    const start=p.length/3;
+    for(let i=0;i<=segments;i++) {
+      const a=i*Math.PI*2/segments;p.push(Math.cos(a)*radius,top?height/2:-height/2,Math.sin(a)*radius);
+      n.push(0,top?1:-1,0);
+    }
+    for(let i=0;i<segments;i++) {
+      if(top) idx.push(center,start+i,start+i+1);else idx.push(center,start+i+1,start+i);
+    }
+  }
+  return makeMesh(p,n,idx);
+}
+// Concave, bearded Norse axe silhouette, actually extruded with solid thickness.
+// The broad curved crescent and inward 'beard' are recognizable even without textures.
+const AXE_OUTLINE = [
+  [-.59,.77],[-.44,.68],[-.31,.50],[-.14,.43],[.14,.38],
+  [.30,.31],[.30,.20],[.15,.16],[-.12,.20],[-.31,.08],
+  [-.48,-.09],[-.60,-.19],[-.68,.04],[-.73,.29],[-.70,.55]
+];
+function triangulatePolygon(points) {
+  // Ear-clipping supports the inward curves; a triangle fan would fill the notch.
+  const area=points.reduce((a,p,i)=>a+p[0]*points[(i+1)%points.length][1]-points[(i+1)%points.length][0]*p[1],0);
+  const order=[...points.keys()];if(area<0)order.reverse();
+  const result=[];
+  let turns=0;
+  while(order.length>3&&turns++<points.length**2){
+    let found=false;
+    for(let k=0;k<order.length;k++){
+      const ai=order[(k+order.length-1)%order.length], bi=order[k],ci=order[(k+1)%order.length];
+      const a=points[ai],b=points[bi],c=points[ci];
+      const cross=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+      if(cross<=1e-7)continue;
+      const inside=order.some(j=>{
+        if(j===ai||j===bi||j===ci)return false;
+        const p=points[j], cross2=(q,r)=>(r[0]-q[0])*(p[1]-q[1])-(r[1]-q[1])*(p[0]-q[0]);
+        return cross2(a,b)>=-1e-7 && cross2(b,c)>=-1e-7 && cross2(c,a)>=-1e-7;
+      });
+      if(inside)continue;
+      result.push(ai,bi,ci);order.splice(k,1);found=true;break;
+    }
+    if(!found)break;
+  }
+  if(order.length===3)result.push(order[0],order[1],order[2]);
+  return result;
+}
+function makeAxeBlade() {
+  const p=[],n=[],indices=[],tri=triangulatePolygon(AXE_OUTLINE);
+  for(const side of [-1,1]){
+    const offset=p.length/3;
+    for(const [x,y] of AXE_OUTLINE){p.push(x,y,side*.067);n.push(0,0,side);}
+    for(let i=0;i<tri.length;i+=3){
+      const [a,b,c]=tri.slice(i,i+3);
+      if(side>0)indices.push(offset+a,offset+b,offset+c);
+      else indices.push(offset+c,offset+b,offset+a);
+    }
+  }
+  for(let j=0;j<AXE_OUTLINE.length;j++){
+    const a=AXE_OUTLINE[j],b=AXE_OUTLINE[(j+1)%AXE_OUTLINE.length],st=p.length/3;
+    const vx=b[0]-a[0],vy=b[1]-a[1],l=Math.hypot(vx,vy);
+    for(const pt of [[...a,-.067],[...b,-.067],[...b,.067],[...a,.067]]){
+      p.push(...pt);n.push(vy/l,-vx/l,0);
+    }
+    indices.push(st,st+1,st+2,st,st+2,st+3);
+  }
+  return makeMesh(p,n,indices);
+}
+function makeAxeEdge() {
+  // Pale blade bevel around the crescent-facing cutting edge, both faces.
+  const p=[],n=[],idx=[];
+  for(const side of [-1,1])for(let j=11;j<=14;j++){
+    const a=AXE_OUTLINE[j],b=AXE_OUTLINE[(j+1)%AXE_OUTLINE.length],st=p.length/3;
+    for(const xy of [a,b,[b[0]+.105,b[1]],[a[0]+.105,a[1]]]){
+      p.push(xy[0],xy[1],side*.070);n.push(0,0,side);
+    }
+    idx.push(st,st+1,st+2,st,st+2,st+3);
+  }
+  return makeMesh(p,n,idx);
+}
+function makeAxeOrnament() {
+  const z=.077,points=[];
+  const line=(a,b)=>points.push(a[0],a[1],z,b[0],b[1],z);
+  const segments=[
+    [[-.42,.25],[-.22,.33]],[[-.22,.33],[-.37,.45]],[[-.37,.45],[-.42,.25]],
+    [[-.19,.30],[-.09,.35]],[[-.17,.27],[-.05,.26]],
+    [[-.29,.25],[-.27,.39]],[[-.33,.38],[-.21,.30]]
+  ];
+  segments.forEach(([a,b])=>line(a,b));
+  return makeLines(points);
+}
+function makeLines(points) {
+  const normals=[];for(let i=0;i<points.length/3;i++) normals.push(0,1,0);
+  return makeMesh(points,normals,null,gl.LINES);
+}
+function gridGeometry(step=2) {
+  const points=[];
+  for(let x=-R.MAP_HALF;x<=R.MAP_HALF;x+=step) {
+    points.push(x,.012,-R.MAP_HALF,x,.012,R.MAP_HALF);
+    points.push(-R.MAP_HALF,.012,x,R.MAP_HALF,.012,x);
+  }
+  return makeLines(points);
+}
+function boxEdgeGeometry() {
+  const verts=[];
+  for(let x of [-.5,.5])for(let y of [-.5,.5])for(let z of [-.5,.5]) {
+    if(x===-.5)verts.push(x,y,z,.5,y,z);
+    if(y===-.5)verts.push(x,y,z,x,.5,z);
+    if(z===-.5)verts.push(x,y,z,x,y,.5);
+  }
+  return makeLines(verts);
+}
+function ringGeometry(radius=1.05, n=36) {
+  const p=[];
+  for(let i=0;i<n;i++) {
+    const a=i/n*2*Math.PI,b=(i+1)/n*2*Math.PI;
+    p.push(radius*Math.cos(a),.022,radius*Math.sin(a),radius*Math.cos(b),.022,radius*Math.sin(b));
+  }
+  return makeLines(p);
+}
+function compileShader(type,source) {
+  const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);
+  if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(shader));
+  return shader;
+}
+function initializeRenderer() {
+  gl = canvas.getContext('webgl', { antialias:true, alpha:false, powerPreference:'high-performance' });
+  if(!gl) throw Error('Браузер не поддерживает WebGL. Попробуй включить аппаратное ускорение.');
+  const vertex=`
+    attribute vec3 aPosition; attribute vec3 aNormal;
+    uniform mat4 uMVP; uniform mat4 uModel;
+    varying vec3 vNormal; varying vec3 vWorld;
+    void main(){ vec4 w=uModel*vec4(aPosition,1.0); vWorld=w.xyz;
+      vNormal=mat3(uModel)*aNormal; gl_Position=uMVP*vec4(aPosition,1.0); }
+  `;
+  const fragment=`
+    precision mediump float;
+    uniform vec3 uColor; uniform vec3 uEye; uniform vec3 uFog;
+    uniform float uUnlit;
+    varying vec3 vNormal; varying vec3 vWorld;
+    void main(){
+      vec3 n=normalize(vNormal);
+      float lit=max(dot(n,normalize(vec3(-0.5,0.9,0.3))),0.0);
+      float brightness=mix(0.43+0.58*lit,1.0,uUnlit);
+      vec3 color=uColor*brightness;
+      float fog=clamp((length(vWorld-uEye)-14.0)/52.0,0.0,1.0);
+      gl_FragColor=vec4(mix(color,uFog,fog*0.65),1.0);
+    }
+  `;
+  const program=gl.createProgram();
+  gl.attachShader(program,compileShader(gl.VERTEX_SHADER,vertex));
+  gl.attachShader(program,compileShader(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
+  gl.useProgram(program);
+  renderer={program,
+    aPos:gl.getAttribLocation(program,'aPosition'), aNorm:gl.getAttribLocation(program,'aNormal'),
+    uMVP:gl.getUniformLocation(program,'uMVP'),uModel:gl.getUniformLocation(program,'uModel'),
+    uColor:gl.getUniformLocation(program,'uColor'),uEye:gl.getUniformLocation(program,'uEye'),
+    uFog:gl.getUniformLocation(program,'uFog'),uUnlit:gl.getUniformLocation(program,'uUnlit'),
+    box:makeBox(), roof:makeRoof(), capsule:makeCapsule(), cylinder:makeCylinder(),
+    axeHead:makeAxeBlade(), axeEdge:makeAxeEdge(), axeOrnament:makeAxeOrnament(),
+    grid:gridGeometry(), boxLines:boxEdgeGeometry(), ring:ringGeometry()};
+  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);
+  gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);
+  gl.clearColor(.50,.67,.72,1);
+  gl.uniform3f(renderer.uFog,.50,.67,.72);
+  gl.enableVertexAttribArray(renderer.aPos);gl.enableVertexAttribArray(renderer.aNorm);
+  resize();
+}
+function draw(mesh, model, hex, unlit=0) {
+  const rgb = typeof hex === 'string' ? parseColor(hex) : hex;
+  const mvp=M.multiply(viewProjection,model);
+  gl.uniformMatrix4fv(renderer.uMVP,false,mvp);
+  gl.uniformMatrix4fv(renderer.uModel,false,model);
+  gl.uniform3fv(renderer.uColor,rgb);
+  gl.uniform1f(renderer.uUnlit,unlit);
+  gl.bindBuffer(gl.ARRAY_BUFFER,mesh.p);gl.vertexAttribPointer(renderer.aPos,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,mesh.norm);gl.vertexAttribPointer(renderer.aNorm,3,gl.FLOAT,false,0,0);
+  if(mesh.indexed) {
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.i);
+    gl.drawElements(mesh.mode,mesh.n,gl.UNSIGNED_SHORT,0);
+  } else gl.drawArrays(mesh.mode,0,mesh.n);
+}
+const colorCache=new Map();
+function parseColor(hex) {
+  if(colorCache.has(hex))return colorCache.get(hex);
+  const color=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);
+  colorCache.set(hex,color);return color;
+}
+function cube(x,y,z,w,h,d,color,rotate=0,unlit=0) {
+  draw(renderer.box,multi(M.translate(x,y,z),M.ry(rotate),M.scale(w,h,d)),color,unlit);
+}
+function blockColors(kind) {
+  switch (kind) {
+    case 'hut': return ['#8a6448','#5f4330','#d6bc87'];
+    case 'ruin': return ['#9b7f62','#67533f','#d8c59f'];
+    case 'wall': return ['#a48360','#6d4d35','#e0cca1'];
+    case 'fence': return ['#816041','#553d2b','#c5a174'];
+    case 'house': return ['#9f714f','#6b4934','#ddc18f'];
+    case 'tower': return ['#89878e','#575964','#c8c9d1'];
+    case 'perimeter': return ['#888b91','#5d626c','#b5bac1'];
+    default: return ['#c59062','#6c493a','#ecd0a0'];
+  }
+}
+function drawMap() {
+  const map = R.getMapData(currentMapKey);
+  const half = R.MAP_HALF;
+  const ground = half * 2;
+  cube(0,-.11,0,ground,.20,ground, currentMapKey==='towers' ? '#4a655f' : '#496b68');
+  draw(renderer.grid,multi(M.identity(), M.scale(ground/48,1,ground/48)),'#426d6a',0.7);
+  for (const b of map.blocks) {
+    const [base, edge, top] = blockColors(b.kind);
+    const model=multi(M.translate(b.x,b.h/2,b.z),M.scale(b.w,b.h,b.d));
+    draw(renderer.box,model,base);
+    draw(renderer.boxLines,model,edge,0.95);
+    cube(b.x,b.h+.045,b.z,b.w+.1,.09,b.d+.1,top);
+    if (b.kind==='hut' || b.kind==='house') {
+      const wallInsetX = Math.max(0.22, b.w * 0.06);
+      const wallInsetZ = Math.max(0.22, b.d * 0.06);
+      const wallHeight = Math.max(1.35, b.h - 0.14);
+      // Wooden frame and foundation trim.
+      cube(b.x, 0.10, b.z, b.w + 0.18, 0.20, b.d + 0.18, '#5f4d38');
+      cube(b.x, wallHeight * 0.5, b.z, b.w - wallInsetX, wallHeight, b.d - wallInsetZ, b.kind==='house' ? '#b68e62' : '#a57a58');
+      cube(b.x - b.w * 0.42, wallHeight * 0.5, b.z, 0.16, wallHeight, b.d - 0.18, '#6e4b34');
+      cube(b.x + b.w * 0.42, wallHeight * 0.5, b.z, 0.16, wallHeight, b.d - 0.18, '#6e4b34');
+      cube(b.x, wallHeight * 0.5, b.z - b.d * 0.42, b.w - 0.18, wallHeight, 0.16, '#6e4b34');
+      cube(b.x, wallHeight * 0.5, b.z + b.d * 0.42, b.w - 0.18, wallHeight, 0.16, '#6e4b34');
+      // Door and windows.
+      cube(b.x, 0.72, b.z - b.d * 0.43, 0.72, 1.44, 0.14, '#4f3526');
+      cube(b.x - b.w * 0.24, 1.32, b.z - b.d * 0.43, 0.46, 0.46, 0.12, '#90b8cd');
+      cube(b.x + b.w * 0.24, 1.32, b.z - b.d * 0.43, 0.46, 0.46, 0.12, '#90b8cd');
+      cube(b.x - b.w * 0.28, 1.32, b.z - b.d * 0.44, 0.56, 0.08, 0.06, '#eadcaf');
+      cube(b.x + b.w * 0.28, 1.32, b.z - b.d * 0.44, 0.56, 0.08, 0.06, '#eadcaf');
+      // Closed roof includes both gables and underside: no gaps between slopes.
+      draw(renderer.roof,multi(M.translate(b.x,b.h+.10,b.z),M.scale(b.w+.55,1.08,b.d+.55)),'#754638');
+      cube(b.x,b.h+1.20,b.z,b.w+.60,.10,.16,'#dfcda2');
+      cube(b.x,b.h+.08,b.z,b.w+.08,.10,b.d+.08,'#d6c391');
+      if (b.kind==='house') {
+        cube(b.x + b.w * 0.28, b.h + 1.10, b.z + b.d * 0.06, 0.30, 0.90, 0.30, '#6b5445');
+        cube(b.x + b.w * 0.28, b.h + 1.58, b.z + b.d * 0.06, 0.40, 0.16, 0.40, '#87766a');
+      }
+    }
+    if (b.kind==='ruin') {
+      cube(b.x, b.h + 0.28, b.z, b.w + 0.15, 0.10, b.d + 0.15, '#c7b395');
+      cube(b.x - b.w * 0.18, b.h + 0.82, b.z - b.d * 0.12, 0.55, 0.8, 0.55, '#8f7d64');
+    }
+    if (b.kind==='tower') {
+      cube(b.x,b.h+0.24,b.z,b.w+.35,.16,b.d+.35,'#b4b4bb');
+    }
+    if (b.kind==='perimeter') {
+      // Crenellations emphasize that these are real stone walls, not ladders.
+      const alongX = b.w > b.d;
+      const longSide = alongX ? b.w : b.d;
+      const count = Math.max(2, Math.floor(longSide / 1.05));
+      for (let j=0; j<count; j++) {
+        const offset = (j+.5)*longSide/count-longSide/2;
+        cube(b.x+(alongX?offset:0),b.h+.20,b.z+(alongX?0:offset),
+          alongX?.42:.66,.36,alongX?.66:.42,'#c3c6c8');
+      }
+    }
+  }
+  for (const d of dummies) draw(renderer.ring,multi(M.translate(d.baseX||d.x,0,d.baseZ||d.z)), '#e3bb77',1);
+  for(let t=-half;t<=half;t+=6) {
+    cube(t,.35,-half,.17,.7,.17,'#233e45');cube(t,.35,half,.17,.7,.17,'#233e45');
+    cube(-half,.35,t,.17,.7,.17,'#233e45');cube(half,.35,t,.17,.7,.17,'#233e45');
+  }
+}
+function drawReloadWind(entity, untilMs) {
+  if (!untilMs || untilMs <= performance.now()) return;
+  // Shotgun cooldown: ONE YELLOW ring at the player's feet.
+  const t = performance.now() * 0.0022;
+  draw(renderer.ring, multi(M.translate(entity.x, entity.y + 0.06, entity.z), M.ry(t), M.scale(1.02, 1, 1.02)), '#ffd269', 1);
+}
+function drawAxeChargeRings(entity) {
+  if (!entity.chargingAxe) return;
+  // Axe charging: TWO BLUE rings (formerly the shotgun visual).
+  const t=performance.now() * 0.0022;
+  draw(renderer.ring,multi(M.translate(entity.x,entity.y+0.07,entity.z),M.ry(t),M.scale(.94,1,.94)),'#a1d9ff',1);
+  draw(renderer.ring,multi(M.translate(entity.x,entity.y+0.22,entity.z),M.ry(-t*1.1),M.scale(1.15,1,1.15)),'#4aafff',1);
+}
+function drawWorldAxeModel(transform) {
+  draw(renderer.cylinder,multi(transform,M.translate(0,-.12,0),M.scale(.055,.83,.055)),'#925e39');
+  draw(renderer.cylinder,multi(transform,M.translate(0,-.39,0),M.scale(.066,.1,.066)),'#404d59');
+  const head=multi(transform,M.translate(.01,.23,0),M.scale(.52,.52,.52));
+  draw(renderer.axeHead,head,'#8ba5b3');
+  draw(renderer.axeEdge,head,'#f0f6f5',1);
+  draw(renderer.cylinder,multi(transform,M.translate(0,.26,0),M.scale(.07,.1,.07)),'#536678');
+}
+function drawWorldShotgunModel(transform, flash = false) {
+  // Visible right-hand shotgun, muzzle points forward in the character's -Z.
+  draw(renderer.cylinder,multi(transform,M.rx(-Math.PI/2),M.scale(.105,.85,.105)),'#34454b');
+  draw(renderer.cylinder,multi(transform,M.translate(0,0,-.43),M.rx(-Math.PI/2),M.scale(.079,.09,.079)),'#14212b',1);
+  draw(renderer.box,multi(transform,M.translate(0,-.10,.20),M.scale(.17,.19,.35)),'#a16d4a');
+  draw(renderer.box,multi(transform,M.translate(0,-.20,.34),M.scale(.10,.19,.16)),'#334b53');
+  if (flash) {
+    draw(renderer.box,multi(transform,M.translate(0,0,-.56),M.scale(.16,.15,.23)),'#ffbb50',1);
+    draw(renderer.box,multi(transform,M.translate(0,0,-.67),M.scale(.08,.07,.22)),'#fff2ac',1);
+  }
+}
+function drawRemoteWeapons(entity, base) {
+  const now=performance.now();
+  const action=remoteActions.get(entity.id);
+  const axeAge=action?.weapon==='axe' ? now-action.at : Infinity;
+  const gunAge=action?.weapon==='shotgun' ? now-action.at : Infinity;
+  const swing=R.axeSwingPose(axeAge);
+  // The axe remains holstered at the LEFT hand when idle, and swings when used.
+  const held=multi(base,M.translate(-.49,1.10,-.25),M.rz(-.22),M.ry(-1.40),
+    M.translate(0,-.33,0),motionMatrix(swing),M.translate(0,.33,0));
+  drawWorldAxeModel(held);
+  if (entity.chargingAxe) {
+    const f=R.forward(entity.yaw);
+    const reach=R.AXE_RANGE - .32;
+    const hover=multi(M.translate(entity.x+f.x*reach,entity.y+1.22+Math.sin(now*.008)*.10,entity.z+f.z*reach),
+      M.ry(entity.yaw), M.ry(-1.38),M.rz(.15+Math.sin(now*.006)*.10),M.scale(.83,.83,.83));
+    // Hovering blade marks the very edge of the current axe hit range.
+    drawWorldAxeModel(hover);
+  }
+  const recoil=R.shotgunRecoilPose(gunAge);
+  const gun=multi(base,M.translate(.44,1.18,-.38),motionMatrix(recoil),M.ry(.08));
+  drawWorldShotgunModel(gun,gunAge < 96);
+}
+function drawCharacter(entity) {
+  const wound = hurtSince.get(entity.id);
+  const hurtAge = wound ? performance.now() - wound.at : Infinity;
+  const hurt = R.hurtPose(hurtAge);
+  // Tilt around the physical capsule's center; animation changes appearance
+  // only, never the collision shape or authoritative position.
+  const direction = wound && wound.direction < 0 ? -1 : 1;
+  const base=multi(M.translate(entity.x,entity.y,entity.z),M.ry(entity.yaw),
+    M.translate(0,1.0,0), M.rz(hurt.lean * direction), M.rx(-hurt.lean * 0.6),
+    M.translate(0,-1.0,0),M.translate(0,hurt.dip,0));
+  const bodyColor = hurt.flash > 0.18 ? '#f59b8c' : entity.kind==='dummy'?'#e0ae79':entity.kind==='bot'?'#d17e79':'#79c9c2';
+  draw(renderer.capsule,base,bodyColor);
+  draw(renderer.cylinder,multi(base,M.translate(-.15,1.50,-.338),M.scale(.075,.075,.075)),'#193c40',1);
+  draw(renderer.cylinder,multi(base,M.translate(.15,1.50,-.338),M.scale(.075,.075,.075)),'#193c40',1);
+  draw(renderer.box,multi(base,M.translate(0,1.18,-.41),M.scale(.34,.24,.13)),'#71452c');
+  draw(renderer.box,multi(base,M.translate(0,1.00,-.40),M.scale(.26,.29,.12)),'#8c5a39');
+  draw(renderer.box,multi(base,M.translate(-.15,.90,-.38),M.rz(.42),M.scale(.12,.33,.09)),'#7f4e31');
+  draw(renderer.box,multi(base,M.translate(.15,.90,-.38),M.rz(-.42),M.scale(.12,.33,.09)),'#7f4e31');
+  draw(renderer.box,multi(base,M.translate(0,.74,-.36),M.scale(.13,.20,.09)),'#96633f');
+  draw(renderer.box,multi(base,M.translate(0,1.86,0),M.scale(.74,.20,.74)),'#6b7a85');
+  draw(renderer.box,multi(base,M.translate(0,2.02,0),M.scale(.52,.10,.52)),'#7f9098');
+  draw(renderer.box,multi(base,M.translate(0,1.78,-.35),M.scale(.18,.12,.07)),'#b5bfc4');
+  draw(renderer.box,multi(base,M.translate(-.30,1.98,-.04),M.rz(.44),M.scale(.10,.34,.08)),'#d2c5a0');
+  draw(renderer.box,multi(base,M.translate(.30,1.98,-.04),M.rz(-.44),M.scale(.10,.34,.08)),'#d2c5a0');
+  const shieldH=R.SHIELD_HEIGHT, shieldW=R.SHIELD_WIDTH;
+  draw(renderer.box,multi(base,M.translate(0,1.08,.46),M.scale(shieldW,shieldH,.12)),'#b97b53');
+  draw(renderer.box,multi(base,M.translate(0,1.08,.537),M.scale(shieldW-.15,shieldH-.12,.025)),'#3b6b70');
+  draw(renderer.box,multi(base,M.translate(0,1.08,.562),M.scale(.14,shieldH-.10,.03)),'#e0c18a');
+  draw(renderer.box,multi(base,M.translate(0,1.08,.58),M.scale(shieldW-.1,.10,.03)),'#e0c18a');
+  drawAxeChargeRings(entity);
+  if (entity.kind !== 'dummy') {
+    drawReloadWind(entity, performance.now() + (entity.shotgunReadyMs || 0));
+    drawRemoteWeapons(entity,base);
+  }
+}
+function motionMatrix(m) {
+  return multi(M.translate(m.x,m.y,m.z),M.rx(m.rx),M.ry(m.ry),M.rz(m.rz));
+}
+function drawViewModels() {
+  const now = performance.now();
+  const eye=currentEye;
+  const cameraWorld=multi(M.translate(eye[0],eye[1],eye[2]),M.ry(local.yaw),M.rx(local.pitch));
+  const swingAge = now - axeSwingAt;
+  const swing = R.axeSwingPose(swingAge);
+  const charge = axeCharging ? R.axeChargePose(now - axeChargeStart) : R.axeChargePose(-1);
+  const axeVisible = axeCharging || swingAge < R.AXE_SWING_ANIM_MS;
+  if (axeVisible) {
+    const smooth = t => { const s = R.clamp(t, 0, 1); return s * s * (3 - 2 * s); };
+    const drawIn = axeCharging ? smooth((now - axeChargeStart) / 170) : 1;
+    const drawOut = swingAge > R.AXE_SWING_ANIM_MS - 120 ? 1 - smooth((swingAge - (R.AXE_SWING_ANIM_MS - 120)) / 120) : 1;
+    const reveal = Math.min(drawIn, drawOut);
+    const hidden = 1 - reveal;
+    const stash = { x: -0.34 * hidden, y: -0.34 * hidden, z: 0.30 * hidden,
+      rx: 0.44 * hidden, ry: -0.70 * hidden, rz: -0.58 * hidden };
+    // Keep the charge animation EXACTLY as before. The hard chop pivots
+    // separately around the lower grip instead of shaking the whole handle.
+    const chargeAndStash = { x: charge.x + stash.x, y: charge.y + stash.y, z: charge.z + stash.z,
+      rx: charge.rx + stash.rx, ry: charge.ry + stash.ry, rz: charge.rz + stash.rz };
+    const axe=multi(cameraWorld, M.translate(-.66,-.63,-.56), motionMatrix(chargeAndStash),
+      M.ry(1.92), M.rx(.12), M.rz(.52),
+      // Local point (-.03,-.32,0) is the bottom of the hand-held haft.
+      M.translate(-.03,-.32,0), motionMatrix(swing), M.translate(.03,.32,0));
+    draw(renderer.cylinder,multi(axe,M.translate(-.03,-.05,0),M.scale(.053,.88,.053)),'#8a5a38');
+    draw(renderer.cylinder,multi(axe,M.translate(-.03,-.34,0),M.scale(.06,.08,.06)),'#44525e');
+    const head=multi(axe,M.translate(-.02,.18,0),M.scale(.60,.60,.60));
+    draw(renderer.axeHead,head,'#7d97a5');
+    draw(renderer.axeEdge,head,'#dde6e5',1);
+    draw(renderer.cylinder,multi(axe,M.translate(-.03,.27,0),M.scale(.08,.10,.08)),'#4e5d68');
+  }
+
+  // Shotgun recoils towards the player and kicks its muzzle upward.
+  const recoil = R.shotgunRecoilPose(now - shotgunShotAt);
+  const shotgun=multi(cameraWorld,M.translate(.17,-.50,-.62),motionMatrix(recoil),M.ry(-.06),M.rx(.02),M.rz(.06));
+  draw(renderer.cylinder,multi(shotgun,M.rx(-Math.PI/2),M.scale(.12,1.08,.12)),'#3a4b4d');
+  draw(renderer.cylinder,multi(shotgun,M.translate(0,0,-.56),M.rx(-Math.PI/2),M.scale(.080,.08,.080)),'#111c22',1);
+  draw(renderer.box,multi(shotgun,M.translate(0,-.13,.15),M.scale(.17,.19,.40)),'#9d6747');
+  draw(renderer.box,multi(shotgun,M.translate(0,-.24,.34),M.scale(.10,.23,.17)),'#3a4b4d');
+  if (now - shotgunShotAt < 90) {
+    // Tiny muzzle flash with two bright, simple non-textured shapes.
+    draw(renderer.box,multi(shotgun,M.translate(0,0,-.67),M.scale(.16,.16,.23)),'#ffb33f',1);
+    draw(renderer.box,multi(shotgun,M.translate(0,0,-.77),M.scale(.08,.08,.27)),'#fff2ad',1);
+  }
+}
+function resize() {
+  if(!gl)return;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const w=Math.round(canvas.clientWidth*dpr),h=Math.round(canvas.clientHeight*dpr);
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  gl.viewport(0,0,w,h);
+}
+window.addEventListener('resize',resize);
+
+function setConnection(connected,text) {
+  ui.connection.textContent=text;
+  ui.dot.classList.toggle('online',connected);
+}
+function setMessage(text) { ui.message.textContent=text; }
+function resetState() {
+  R.setMap(currentMapKey);
+  const sp=R.randomSpawn(currentMapKey);
+  local={ ...R.createBody(sp.x,sp.z), hp:100, alive:true, kills:0, deaths:0, charged:false };
+  dummies=R.makeDummiesForMap(currentMapKey);shooterBot=currentMapKey==='training'?R.makeShooterBot():null; remote.clear();localChargeUntil=0;shotgunReadyUntil=0;axeCharging=false;axeChargeStart=0;axeChargeGiven=false;axeRotation=0;
+  axeSwingAt=-Infinity;shotgunShotAt=-Infinity;localHurtAt=-Infinity;hurtSince.clear();remoteActions.clear();shieldSparkBursts.length=0;
+  stopChargeHum(); footstepState.clear();
+  hideDeath();
+  firstServerSnapshot=true;lastAttack={shotgun:-Infinity,axe:-Infinity};
+  for(const elem of labelElements.values())elem.root.remove();
+  labelElements.clear();ui.feed.replaceChildren();
+}
+function pointerLock() {
+  if(document.pointerLockElement!==canvas) {
+    const promise=canvas.requestPointerLock?.();
+    if(promise?.catch)promise.catch(()=>setMessage('Нажми «Вернуться в игру», чтобы захватить мышь.'));
+  }
+}
+const sbUrlInput = $('sbUrl');
+const sbKeyInput = $('sbKey');
+sbUrlInput.value = storageRead('vs_sb_url', '');
+sbKeyInput.value = storageRead('vs_sb_key', '');
+if (sbUrlInput.value && sbKeyInput.value) $('supabaseSettings').open = false;
+
+sbUrlInput.addEventListener('input', () => storageSave('vs_sb_url', sbUrlInput.value.trim()));
+sbKeyInput.addEventListener('input', () => storageSave('vs_sb_key', sbKeyInput.value.trim()));
+$('roomCode').value = new URLSearchParams(location.search).get('room')?.match(/^\d{4}$/)?.[0] || '';
+
+function generateUuid() {
+  if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+function getSupabase() {
+  const url = sbUrlInput.value.trim();
+  const key = sbKeyInput.value.trim();
+  if (!url || !key) throw new Error('Укажи Supabase Project URL и Anon Key в настройках выше.');
+  if (!window.supabase || !window.supabase.createClient) throw new Error('Не удалось загрузить библиотеку Supabase. Проверь интернет.');
+  if (!sbClient || sbClient._vsUrl !== url || sbClient._vsKey !== key) {
+    sbClient = window.supabase.createClient(url, key, {
+      realtime: { params: { eventsPerSecond: 25 } }
+    });
+    sbClient._vsUrl = url;
+    sbClient._vsKey = key;
+  }
+  return sbClient;
+}
+
+async function cleanupSupabase() {
+  if (sbHeartbeat) { clearInterval(sbHeartbeat); sbHeartbeat = null; }
+  if (sbChannel) {
+    try { await sbChannel.untrack(); } catch (_) {}
+    try { await sbClient.removeChannel(sbChannel); } catch (_) {}
+    sbChannel = null;
+  }
+  if (sbClient && myId && myId !== 'local') {
+    try { await sbClient.from('vs_players').delete().eq('id', myId); } catch (_) {}
+  }
+}
+
+$('createRoom').addEventListener('click', async () => {
+  const button = $('createRoom'); button.disabled = true;
+  try {
+    const sb = getSupabase();
+    if (ui.map) { currentMapKey = ui.map.value; storageSave('vs_map', currentMapKey); }
+    let createdCode = null;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const candidate = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+      const { error } = await sb.from('vs_rooms').insert({
+        code: candidate,
+        map_key: currentMapKey,
+        max_players: MAX_ROOM_PLAYERS
+      });
+      if (!error) { createdCode = candidate; break; }
+    }
+    if (!createdCode) throw new Error('Не удалось создать комнату. Проверь, выполнен ли SQL-скрипт в Supabase.');
+    $('roomCode').value = createdCode;
+    setMessage('Комната ' + createdCode + ' создана (до 5 игроков). Нажми «Войти по коду» и передай код друзьям.');
+  } catch (error) { setMessage(error.message); }
+  finally { button.disabled = false; }
+});
+
+async function start(modeChoice) {
+  let code = '';
+  let sb = null;
+  if (modeChoice === 'online') {
+    try {
+      code = $('roomCode').value.trim();
+      if (!/^\d{4}$/.test(code)) throw new Error('Введи ровно 4 цифры кода комнаты.');
+      sb = getSupabase();
+    } catch (error) { setMessage(error.message); return; }
+  }
+  if (ui.map) { currentMapKey = ui.map.value; storageSave('vs_map', currentMapKey); }
+  R.setMap(currentMapKey);
+  if (!renderer) {
+    try { initializeRenderer(); } catch (e) { setMessage(e.message); return; }
+  }
+  await cleanupSupabase();
+  resetState(); started = true; mode = modeChoice;
+  ui.hud.hidden = false; ui.overlay.hidden = true; ui.start.hidden = true; ui.first.hidden = true; ui.resume.hidden = false;
+
+  if (modeChoice === 'offline') {
+    myId = 'local'; setConnection(false, 'Тренировка · офлайн · ' + R.getMapData(currentMapKey).label);
+    if (currentMapKey === 'training') feed('Учебный полигон: четыре противника используют дробовик и топор.');
+    else feed('Карта «' + R.getMapData(currentMapKey).label + '» загружена. Болванки возрождаются после смерти.');
+    pointerLock();
+    return;
+  }
+
+  setConnection(false, 'Подключение к комнате ' + code + '...');
+  try {
+    // 1. Проверяем комнату в базе (или создаем, если её ещё нет)
+    let { data: roomData, error: roomErr } = await sb.from('vs_rooms').select('*').eq('code', code).maybeSingle();
+    if (roomErr) throw new Error('Ошибка БД Supabase: ' + roomErr.message);
+    if (!roomData) {
+      const { data: inserted, error: insErr } = await sb.from('vs_rooms').insert({
+        code, map_key: currentMapKey, max_players: MAX_ROOM_PLAYERS
+      }).select().single();
+      if (insErr) throw new Error('Не удалось открыть комнату: ' + insErr.message);
+      roomData = inserted;
+    } else if (roomData.map_key && R.MAPS[roomData.map_key]) {
+      currentMapKey = roomData.map_key;
+      R.setMap(currentMapKey);
+      if (ui.map) ui.map.value = currentMapKey;
+      const sp = R.randomSpawn(currentMapKey);
+      local.x = sp.x; local.z = sp.z;
+    }
+
+    // 2. Регистрируем игрока в vs_players (триггер в SQL проверит лимит <= 5 игроков)
+    myId = generateUuid();
+    const playerName = (ui.name.value.trim() || 'Викинг').slice(0, 18);
+    const { error: joinErr } = await sb.from('vs_players').insert({
+      id: myId,
+      room_code: code,
+      name: playerName,
+      x: local.x, y: local.y, z: local.z,
+      yaw: local.yaw, pitch: local.pitch,
+      hp: 100, alive: true, kills: 0, deaths: 0
+    });
+    if (joinErr) {
+      throw new Error(joinErr.message.includes('заполнена') ? 'Комната ' + code + ' заполнена (максимум 5 игроков).' : joinErr.message);
+    }
+
+    // 3. Подключаем Supabase Realtime канал для комнаты (до 5 игроков)
+    const channel = sb.channel('vs-room-' + code, {
+      config: { presence: { key: myId }, broadcast: { self: false } }
+    });
+    sbChannel = channel;
+
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const onlineIds = new Set(Object.keys(state));
+      for (const id of remote.keys()) {
+        if (!onlineIds.has(id)) remote.delete(id);
+      }
+      const count = Math.min(MAX_ROOM_PLAYERS, onlineIds.size);
+      setConnection(true, 'Комната ' + code + ' · ' + count + '/5');
+    });
+
+    channel.on('broadcast', { event: 'state' }, ({ payload }) => {
+      if (!payload || payload.id === myId) return;
+      handleRemoteState(payload);
+    });
+
+    channel.on('broadcast', { event: 'fx' }, ({ payload }) => {
+      if (!payload || payload.actor === myId) return;
+      const pos = { x: payload.x, y: payload.y, z: payload.z };
+      remoteActions.set(payload.actor, { at: performance.now(), weapon: payload.fx });
+      if (payload.fx === 'shotgun') playShotgunFire(pos);
+      if (payload.fx === 'axe') playTone('square', 160, 0.08, spatialVolume(pos, 0.15), 0, pos);
+    });
+
+    channel.on('broadcast', { event: 'hit_event' }, ({ payload }) => {
+      if (!payload) return;
+      if (payload.shielded && payload.impact) {
+        spawnShieldSparks(payload.impact, payload.weapon);
+        if (payload.attacker !== myId) {
+          playHitSound(payload.weapon === 'shotgun' ? 'shotgun-shield' : 'axe-shield', payload.impact);
+        }
+      }
+      if (payload.target === myId && local.alive && payload.damage > 0) {
+        local.hp = Math.max(0, local.hp - payload.damage);
+        markHurt(myId, payload.damage, { x: payload.attackerX, z: payload.attackerZ });
+        broadcastState(true);
+        if (local.hp === 0) {
+          local.alive = false;
+          local.deaths++;
+          showDeath(R.PLAYER_RESPAWN_MS);
+          channel.send({
+            type: 'broadcast',
+            event: 'kill_event',
+            payload: {
+              attackerId: payload.attacker,
+              attackerName: payload.attackerName || 'Викинг',
+              victimId: myId,
+              victimName: playerName,
+              weapon: payload.weapon
+            }
+          });
+          broadcastState(true);
+        }
+      } else if (payload.damage > 0 && payload.target !== myId) {
+        markHurt(payload.target, payload.damage, { x: payload.attackerX, z: payload.attackerZ });
+      }
+    });
+
+    channel.on('broadcast', { event: 'kill_event' }, ({ payload }) => {
+      if (!payload) return;
+      if (payload.attackerId === myId) local.kills++;
+      const icon = payload.weapon === 'axe' ? '🪓' : '🔫';
+      feed(payload.attackerName + ' ' + icon + ' ' + payload.victimName);
+    });
+
+    channel.subscribe(async status => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ id: myId, name: playerName, joinedAt: Date.now() });
+        setConnection(true, 'Комната ' + code + ' · 1/5');
+        feed('Подключено к комнате ' + code + ' (Supabase, до 5 игроков).');
+        broadcastState(true);
+      }
+    });
+
+    // 4. Периодическое обновление heartbeat в таблице vs_players (каждые 5 сек)
+    sbHeartbeat = setInterval(() => {
+      if (!sbClient || !myId || mode !== 'online') return;
+      sbClient.from('vs_players').update({
+        x: local.x, y: local.y, z: local.z,
+        yaw: local.yaw, pitch: local.pitch,
+        hp: local.hp, alive: local.alive,
+        kills: local.kills, deaths: local.deaths,
+        last_seen: new Date().toISOString()
+      }).eq('id', myId).then(() => {});
+    }, 5000);
+
+    pointerLock();
+  } catch (err) {
+    started = false; mode = null;
+    ui.overlay.hidden = false; ui.resume.hidden = true; ui.start.hidden = false; ui.first.hidden = false;
+    setConnection(false, 'Ошибка Supabase');
+    setMessage(err.message);
+  }
+}
+
+window.addEventListener('beforeunload', () => {
+  if (sbClient && myId && myId !== 'local') {
+    const url = sbClient._vsUrl + '/rest/v1/vs_players?id=eq.' + encodeURIComponent(myId);
+    fetch(url, {
+      method: 'DELETE',
+      keepalive: true,
+      headers: {
+        'apikey': sbClient._vsKey,
+        'Authorization': 'Bearer ' + sbClient._vsKey
+      }
+    }).catch(() => {});
+  }
+});
+
+$('online').addEventListener('click',()=>start('online'));
+$('offline').addEventListener('click',()=>start('offline'));
+ui.resume.addEventListener('click',()=>{setMessage('');ui.overlay.hidden=true;pointerLock();});
+canvas.addEventListener('click',()=>{if(started&&document.pointerLockElement!==canvas&&!ui.overlay.hidden){ui.overlay.hidden=true;pointerLock();}});
+document.addEventListener('pointerlockchange',()=>{
+  if(!started)return;
+  if(document.pointerLockElement!==canvas) {
+    keyState={w:false,a:false,s:false,d:false,space:false,charge:false};
+    axeCharging=false;keyState.charge=false;axeRotation=0;stopChargeHum();
+    ui.overlay.hidden=false;ui.resume.hidden=false;ui.start.hidden=true;ui.first.hidden=true;
+  } else ui.overlay.hidden=true;
+});
+window.addEventListener('blur',()=>{keyState={w:false,a:false,s:false,d:false,space:false,charge:false}; axeCharging=false;keyState.charge=false;axeRotation=0;stopChargeHum();});
+const keys={KeyW:'w',KeyA:'a',KeyS:'s',KeyD:'d',Space:'space'};
+window.addEventListener('keydown',e=>{
+  if(keys[e.code]) {if(document.pointerLockElement===canvas&&local.alive){keyState[keys[e.code]]=true;e.preventDefault();}}
+  if(e.code==='KeyK'&&!e.repeat&&started&&mode==='offline'&&local.alive&&document.pointerLockElement===canvas){
+    local.hp=0;local.alive=false;local.deaths++;showDeath();e.preventDefault();
+  }
+});
+window.addEventListener('keyup',e=>{if(keys[e.code]){keyState[keys[e.code]]=false;e.preventDefault();}});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+function beginAxeCharge(){
+  if(!local.alive || axeCharging) return;
+  axeCharging=true; keyState.charge=true; axeChargeStart=performance.now();axeChargeGiven=false;
+  axeRotation=0;previousTurnYaw=local.yaw;lastMouseTurnAt=performance.now();
+  localChargeUntil=0; startChargeHum(); ensureAudio();
+  if(mode==='online') broadcastState(true);
+}
+function releaseAxeCharge(){
+  if(!axeCharging) return;
+  axeCharging=false; keyState.charge=false; stopChargeHum();
+  attack('axe');
+  axeRotation=0;
+  if(mode==='online') broadcastState(true);
+}
+canvas.addEventListener('mousedown',e=>{
+  if(!started||document.pointerLockElement!==canvas)return;
+  ensureAudio();
+  if(e.button===0) attack('shotgun');
+  if(e.button===2) beginAxeCharge();
+});
+window.addEventListener('mouseup',e=>{
+  if(e.button===2) releaseAxeCharge();
+});
+document.addEventListener('mousemove',e=>{
+  if(!started||document.pointerLockElement!==canvas)return;
+  const amount=0.004*sense;
+  const now = performance.now();
+  const elapsed = R.clamp((now-lastMouseTurnAt)/1000, .001, .1);
+  lastMouseTurnAt=now;
+  const mxRaw=R.clamp(e.movementX,-2000,2000), my=R.clamp(e.movementY,-2000,2000);
+  const delta=R.clamp(mxRaw*amount, -R.CHARGE_TURN_LIMIT*elapsed, R.CHARGE_TURN_LIMIT*elapsed);
+  local.yaw += delta;
+  if (Math.abs(delta)/elapsed >= R.SHIELD_SPIN_RATE) local.shieldWideUntil=Date.now()+R.SHIELD_SPIN_GRACE_MS;
+  if (axeCharging && !axeChargeGiven) {
+    axeRotation += delta;
+    if (Math.abs(axeRotation) >= R.TAU) {
+      axeChargeGiven=true;
+      localChargeUntil=Date.now()+R.AXE_CHARGE_HOLD_MS;
+      playTone('sine', 540, .15, soundGain(.08));
+      if (mode==='online') broadcastState(true);
+    }
+  }
+  local.pitch = R.clamp(local.pitch+(ui.invertY.checked?my:-my)*amount,-1.47,1.47);
+});
+
+function broadcastState(force=false) {
+  if (mode !== 'online' || !sbChannel || !myId) return;
+  const now = performance.now();
+  if (!force && now - sbLastBroadcast < 40) return;
+  sbLastBroadcast = now;
+  const playerName = (ui.name.value.trim() || 'Викинг').slice(0, 18);
+  sbChannel.send({
+    type: 'broadcast',
+    event: 'state',
+    payload: {
+      id: myId,
+      name: playerName,
+      kind: 'player',
+      x: local.x, y: local.y, z: local.z,
+      yaw: local.yaw, pitch: local.pitch,
+      hp: local.hp, alive: local.alive,
+      kills: local.kills, deaths: local.deaths,
+      chargingAxe: axeCharging,
+      charged: localChargeUntil > Date.now(),
+      shieldWide: (local.shieldWideUntil || 0) > Date.now(),
+      shotgunReadyMs: Math.max(0, shotgunReadyUntil - now)
+    }
+  });
+}
+
+function handleRemoteState(p) {
+  if (!p || !p.id || p.id === myId) return;
+  const previous = remote.get(p.id);
+  if (previous) {
+    previous.target = p;
+    previous.lastUpdate = performance.now();
+  } else {
+    remote.set(p.id, { ...p, target: p, lastUpdate: performance.now(), lastStepAt: 0, lastPos: { x: p.x, z: p.z } });
+  }
+}
+
+function feed(text) {
+  const el=document.createElement('div');el.textContent=text;ui.feed.prepend(el);
+  while(ui.feed.children.length>5)ui.feed.lastChild.remove();
+  setTimeout(()=>{if(el.isConnected)el.remove();},5200);
+}
+function indicateHit(text, kind='miss') {
+  feedbackUntil=performance.now()+700;feedbackText=text;feedbackKind=kind;ui.hit.textContent=text;
+}
+function attack(weapon) {
+  if(!local.alive)return;
+  const now=performance.now();
+  if(weapon==='shotgun' && (axeCharging || now<shotgunReadyUntil)) return;
+  const cooldown=weapon==='shotgun'?R.shotgunCooldownForMap(currentMapKey):R.AXE_COOLDOWN;
+  if(now-lastAttack[weapon]<cooldown)return;
+  lastAttack[weapon]=now;
+  if (weapon==='shotgun') { shotgunShotAt=now; shotgunReadyUntil=now+cooldown; playShotgunFire(); }
+  if (weapon==='axe') axeSwingAt=now;
+  if (mode==='online') {
+    broadcastState(true);
+    if (sbChannel) {
+      sbChannel.send({
+        type: 'broadcast',
+        event: 'fx',
+        payload: { actor: myId, fx: weapon, x: local.x, y: local.y, z: local.z }
+      });
+    }
+    onlineAttack(weapon);
+  } else {
+    offlineAttack(weapon);
+  }
+  if (weapon==='axe') localChargeUntil=0;
+}
+function spawnShieldSparks(impact, weapon) {
+  if (!impact || !Number.isFinite(impact.x) || !Number.isFinite(impact.y) || !Number.isFinite(impact.z)) return;
+  const nx = Number.isFinite(impact.nx) ? impact.nx : 0;
+  const nz = Number.isFinite(impact.nz) ? impact.nz : 1;
+  const rightX = nz, rightZ = -nx;
+  const count = weapon === 'shotgun' ? 31 : 24;
+  const particles = [];
+  for (let i = 0; i < count; i++) {
+    const scatter = (Math.random() - 0.5) * 5.5;
+    const outward = 1.0 + Math.random() * 3.8;
+    const lift = (Math.random() - 0.20) * 5.5;
+    particles.push({
+      x: (Math.random() - .5) * .23, y: (Math.random() - .5) * .26, z: (Math.random() - .5) * .23,
+      vx: nx * outward + rightX * scatter,
+      vy: lift,
+      vz: nz * outward + rightZ * scatter,
+      life: .24 + Math.random() * .29,
+      size: .024 + Math.random() * .022,
+      color: ['#fff3b5','#ffe274','#ffb649','#ff7e39'][Math.floor(Math.random()*4)]
+    });
+  }
+  shieldSparkBursts.push({ at: performance.now(), impact: {x:impact.x,y:impact.y,z:impact.z}, particles });
+  if (shieldSparkBursts.length > 28) shieldSparkBursts.shift();
+}
+function drawShieldSparks() {
+  if (!shieldSparkBursts.length) return;
+  const now = performance.now();
+  for (let i = shieldSparkBursts.length - 1; i >= 0; i--) {
+    const burst = shieldSparkBursts[i];
+    const age = (now - burst.at) / 1000;
+    if (age >= .55) { shieldSparkBursts.splice(i, 1); continue; }
+    if (age < .105) {
+      const f = 1 - age / .105;
+      const size = .30 * f;
+      cube(burst.impact.x,burst.impact.y,burst.impact.z,size,size,size,'#fff0b1',0,1);
+    }
+    for (const part of burst.particles) {
+      if (age > part.life) continue;
+      const fade = 1 - age / part.life;
+      const x = burst.impact.x + part.x + part.vx * age;
+      const y = burst.impact.y + part.y + part.vy * age - 7.6 * age * age;
+      const z = burst.impact.z + part.z + part.vz * age;
+      const tiltX = Math.atan2(part.vz - 15.2*age, Math.max(.25, Math.abs(part.vy - 15.2*age)));
+      const tiltZ = -Math.atan2(part.vx, Math.max(.25, Math.abs(part.vy - 15.2*age)));
+      draw(renderer.box,multi(M.translate(x,y,z),M.rx(tiltX),M.rz(tiltZ),
+        M.scale(part.size*fade, (.08 + part.size*3)*fade, part.size*fade)),part.color,1);
+    }
+  }
+}
+function onlineAttack(weapon) {
+  const charged = weapon === 'axe' && localChargeUntil > Date.now();
+  const candidates = [...remote.values()].filter(p => p.alive && R.inAttack(local, p, weapon, R.getBlocks(currentMapKey)));
+  if (!candidates.length) { indicateHit('МИМО', 'miss'); return; }
+  candidates.sort((a, b) => R.distXZ(local, a) - R.distXZ(local, b));
+  const target = candidates[0];
+  const shielded = R.isShielded(target, local);
+  const impact = shielded ? R.shieldImpactPoint(target) : null;
+  if (shielded) spawnShieldSparks(impact, weapon);
+  const dmg = R.damageFor(weapon, shielded, charged);
+  if (dmg > 0) markHurt(target.id, dmg, local);
+  const kind = weapon === 'shotgun' ? (dmg > 0 ? 'shotgun-face' : 'shotgun-shield') : (dmg > 0 && !shielded ? 'axe-face' : 'axe-shield');
+  if (dmg === 0) indicateHit('ДРОБОВИК В ЩИТ', kind);
+  else indicateHit((weapon === 'shotgun' ? 'ДРОБОВИК ПО ЛИЦУ · ' : (shielded ? 'ТОПОР В ЩИТ · ' : 'ТОПОР ПО ЛИЦУ · ')) + '−' + dmg, kind);
+  playHitSound(kind);
+
+  if (sbChannel) {
+    const playerName = (ui.name.value.trim() || 'Викинг').slice(0, 18);
+    sbChannel.send({
+      type: 'broadcast',
+      event: 'hit_event',
+      payload: {
+        attacker: myId,
+        attackerName: playerName,
+        attackerX: local.x,
+        attackerZ: local.z,
+        target: target.id,
+        weapon,
+        damage: dmg,
+        shielded,
+        impact
+      }
+    });
+  }
+}
+function offlineAttack(weapon) {
+  const charged=weapon==='axe'&&localChargeUntil>Date.now();
+  const candidates = [...dummies,...(shooterBot ? [shooterBot] : [])].filter(d => d.alive && R.inAttack(local,d,weapon,R.getBlocks(currentMapKey)));
+  if(!candidates.length) {indicateHit('МИМО','miss'); return;}
+  candidates.sort((a,b)=>R.distXZ(local,a)-R.distXZ(local,b));
+  const target = candidates[0];
+  const shielded=R.isShielded(target,local);
+  if (shielded) spawnShieldSparks(R.shieldImpactPoint(target), weapon);
+  const dmg=R.damageFor(weapon,shielded,charged);
+  target.hp=Math.max(0,target.hp-dmg);
+  if (dmg > 0) markHurt(target.id, dmg, local);
+  const kind = weapon==='shotgun' ? (dmg>0?'shotgun-face':'shotgun-shield') : (dmg>0&&!shielded?'axe-face':'axe-shield');
+  if(dmg===0) indicateHit('БЛОК ЩИТОМ',kind);
+  else indicateHit((weapon==='shotgun'?'ПО ЛИЦУ · ':'УДАР · ')+'−'+dmg,kind);
+  playHitSound(kind);
+  if(!target.hp){
+    target.alive=false;target.respawnAt=Date.now()+R.DUMMY_RESPAWN_MS;
+    local.kills++;
+    feed('Ты уничтожил '+target.name+'! Возрождение через 1,35 с.');
+  }
+}
+function markHurt(victimId, damage, attacker=null) {
+  if (!damage) return;
+  const now = performance.now();
+  let direction = 1;
+  const victim = victimId === myId ? local : (remote.get(victimId) || dummies.find(d=>d.id===victimId) || (shooterBot?.id===victimId ? shooterBot : null));
+  if (victim && attacker) {
+    const bearing = Math.atan2(attacker.x-victim.x, -(attacker.z-victim.z));
+    direction = R.angleWrap(bearing-victim.yaw) > 0 ? 1 : -1;
+  }
+  hurtSince.set(victimId,{at:now,direction});
+  if (victimId === myId) localHurtAt=now;
+}
+function showDeath(remaining=R.PLAYER_RESPAWN_MS) {
+  deathDuration=Math.max(1,remaining);
+  deathUntil=performance.now()+Math.max(0,remaining);
+  ui.death.hidden=false;
+  document.body.classList.add('is-dead');
+  keyState={w:false,a:false,s:false,d:false,space:false,charge:false};
+  axeCharging=false; axeChargeGiven=false; stopChargeHum();
+}
+function hideDeath() {deathUntil=0;ui.death.hidden=true;document.body.classList.remove('is-dead');}
+function updateHud() {
+  ui.hp.textContent=local.hp+' / 100';ui.hpFill.style.width=local.hp+'%';
+  ui.hpFill.style.background=local.hp>34?'linear-gradient(90deg,#51d593,#a1efd0)':'linear-gradient(90deg,#d76054,#f1ae7b)';
+  ui.score.textContent='Убийства: '+local.kills+' · Смерти: '+local.deaths;
+  const chargeRemaining = localChargeUntil - Date.now();
+  if (axeCharging && chargeRemaining <= 0) {
+    const progress=Math.floor(R.clamp(Math.abs(axeRotation)/R.TAU,0,1)*100);
+    ui.charge.hidden=false; ui.charge.textContent='↻ ВРАЩАЙСЯ НА 360° · '+progress+'%';
+  } else if (chargeRemaining > 0) {
+    ui.charge.hidden=false; ui.charge.textContent='⚡ ТОПОР ЗАРЯЖЕН · '+(chargeRemaining/1000).toFixed(1)+' с';
+  } else ui.charge.hidden=true;
+  ui.hit.classList.toggle('shown',performance.now()<feedbackUntil);
+  if (ui.damageFlash) {
+    const hurt = R.hurtPose(performance.now()-localHurtAt);
+    ui.damageFlash.style.opacity = started ? hurt.overlay.toFixed(3) : '0';
+  }
+  for (const [id,event] of hurtSince) {
+    if (performance.now()-event.at > R.HURT_ANIM_MS + 100) hurtSince.delete(id);
+  }
+  for (const [id,event] of remoteActions) {
+    if (performance.now()-event.at > 500) remoteActions.delete(id);
+  }
+  if(!ui.death.hidden){
+    const remaining=Math.max(0,deathUntil-performance.now());
+    ui.deathTimer.textContent=(remaining/1000).toFixed(1)+' с';
+    ui.deathBar.style.width=(Math.min(1,remaining/deathDuration)*100).toFixed(1)+'%';
+  }
+}
+function createLabel(e){
+  const root=document.createElement('div');root.className='world-label'+(e.kind==='dummy'?' dummy':'');
+  const name=document.createElement('div');name.className='world-name';
+  const bg=document.createElement('div');bg.className='world-health-bg';
+  const fill=document.createElement('div');fill.className='world-health-fill';
+  bg.append(fill);root.append(name,bg);ui.labels.append(root);
+  return {root,name,fill};
+}
+function updateLabels(entities) {
+  const seen=new Set();
+  for(const e of entities){
+    if(!e.alive)continue;
+    seen.add(e.id);
+    let label=labelElements.get(e.id);
+    if(!label){label=createLabel(e);labelElements.set(e.id,label);}
+    label.name.textContent=e.name;
+    label.fill.style.width=e.hp+'%';
+    // Ordinary maps hide player names behind cover. The training range keeps labels visible.
+    const blocked = currentMapKey !== 'training' && R.blockedLineOfSight(
+      {x:currentEye[0],y:currentEye[1],z:currentEye[2]},
+      {x:e.x,y:e.y+R.CAMERA_HEIGHT,z:e.z},R.getBlocks(currentMapKey));
+    if (blocked) { label.root.hidden=true;continue; }
+    const pos=M.transform(viewProjection,[e.x,e.y+R.PLAYER_HEIGHT+.48,e.z,1]);
+    if(pos[3]<=.01){label.root.hidden=true;continue;}
+    const ndcX=pos[0]/pos[3],ndcY=pos[1]/pos[3];
+    label.root.hidden=Math.abs(ndcX)>1.14||Math.abs(ndcY)>1.16;
+    if(!label.root.hidden){
+      const sx=(ndcX*.5+.5)*innerWidth,sy=(.5-ndcY*.5)*innerHeight;
+      label.root.style.left=sx+'px';label.root.style.top=sy+'px';
+    }
+  }
+  for(const [id,label] of labelElements){if(!seen.has(id)){label.root.remove();labelElements.delete(id);}}
+}
+function renderFrame(){
+  if(!renderer)return;
+  resize();
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  currentEye=[local.x,local.y+R.CAMERA_HEIGHT,local.z];
+  const projection=M.perspective(fovDeg*Math.PI/180,canvas.width/canvas.height,.055,95);
+  // Inverse of cameraWorld = T(camera) * Ry(yaw) * Rx(pitch).
+  const cameraFlinch = R.hurtPose(performance.now()-localHurtAt).cameraKick;
+  viewMatrix=multi(M.rx(-local.pitch+cameraFlinch),M.ry(-local.yaw),M.translate(-currentEye[0],-currentEye[1],-currentEye[2]));
+  viewProjection=M.multiply(projection,viewMatrix);
+  gl.useProgram(renderer.program);gl.uniform3fv(renderer.uEye,new Float32Array(currentEye));
+  drawMap();
+  const others=[];
+  if(mode==='offline') others.push(...dummies,...(shooterBot ? [shooterBot] : []));
+  else {
+    for(const e of remote.values()){
+      e.x+=(e.target.x-e.x)*.27;e.y+=(e.target.y-e.y)*.27;e.z+=(e.target.z-e.z)*.27;
+      const difference=R.angleWrap(e.target.yaw-e.yaw);
+      e.yaw+=difference*.27;e.hp=e.target.hp;e.alive=e.target.alive;
+      e.name=e.target.name;e.kind=e.target.kind; e.chargingAxe=e.target.chargingAxe; e.chargeProgress=e.target.chargeProgress; e.charged=e.target.charged; e.shotgunReadyMs=e.target.shotgunReadyMs; e.shieldWide=e.target.shieldWide;
+      others.push(e);
+    }
+  }
+  for(const entity of others) {
+    const wound = hurtSince.get(entity.id);
+    if (entity.alive || (wound && performance.now()-wound.at < 260)) drawCharacter(entity);
+  }
+  updateLabels(others);
+  drawShieldSparks();
+  if(started&&local.alive){gl.clear(gl.DEPTH_BUFFER_BIT);drawViewModels();}
+}
+
+function maybeStepSound(id, entity, moving, grounded=true) {
+  const now = performance.now();
+  let state = footstepState.get(id);
+  if (!state) { state = { last: 0, lastPos: { x: entity.x, z: entity.z } }; footstepState.set(id, state); }
+  const dx = entity.x - state.lastPos.x, dz = entity.z - state.lastPos.z;
+  const moved = Math.hypot(dx, dz);
+  state.lastPos = { x: entity.x, z: entity.z };
+  if (!grounded) return;
+  if ((moving || moved > 0.07) && now - state.last > 340) {
+    playStep(id==='local'?null:entity, id!=='local');
+    state.last = now;
+  }
+}
+function loop(t){
+  const dt=Math.min((t-lastFrame)/1000,.045);lastFrame=t;
+  if(started){
+    const k=(document.pointerLockElement===canvas&&local.alive)?keyState:{};
+    if(mode==='offline'){
+      if(local.alive)R.stepBody(local,{...k,chargedMove:localChargeUntil>Date.now()},dt);
+      else if(performance.now()>=deathUntil){const sp=R.randomSpawn(currentMapKey);local={...R.createBody(sp.x,sp.z),hp:100,alive:true,kills:local.kills,deaths:local.deaths,charged:false};hideDeath();feed('Ты возродился.');}
+      for (let i=0;i<dummies.length;i++) {
+        const d=dummies[i];
+        if (d.alive) { if (!d.combatant) R.updateDummy(d, Date.now(), dt); }
+        else if(Date.now()>=d.respawnAt){ dummies[i]=R.makeDummy(R.getMapData(currentMapKey).dummies[i], i+1); feed(d.name+' возродилась.'); }
+      }
+      if(shooterBot && !shooterBot.alive && Date.now() >= shooterBot.respawnAt) shooterBot=R.makeShooterBot();
+      for(const bot of [...dummies.filter(d=>d.combatant),...(shooterBot?[shooterBot]:[])]) {
+        if(!bot.alive)continue;
+        const victim=R.updateShooterBot(bot,[{...local,id:'local',kind:'player'}],Date.now(),dt,R.getBlocks(currentMapKey));
+        if(!victim)continue;
+        const weapon=bot.attackWeapon;
+        remoteActions.set(bot.id,{weapon,at:performance.now()});
+        if(weapon==='shotgun')playShotgunFire(bot);
+        else playTone('square',160,.08,spatialVolume(bot,.15),0,bot);
+        const shielded=R.isShielded(local,bot);
+        if(shielded)spawnShieldSparks(R.shieldImpactPoint(local),weapon);
+        const damage=R.damageFor(weapon,shielded);
+        if(damage>0){
+          local.hp=Math.max(0,local.hp-damage);markHurt('local',damage,bot);
+          if(local.hp===0){local.alive=false;local.deaths++;bot.kills++;showDeath();feed(bot.name+' победил тебя.');}
+        }
+      }
+    }else if(mode==='online'){
+      if(local.alive){
+        R.stepBody(local,{...k,chargedMove:localChargeUntil>Date.now()},dt);
+      } else if(performance.now()>=deathUntil){
+        const sp=R.randomSpawn(currentMapKey);
+        local={...R.createBody(sp.x,sp.z),hp:100,alive:true,kills:local.kills,deaths:local.deaths,charged:false};
+        hideDeath();
+        feed('Ты возродился.');
+        broadcastState(true);
+      }
+      broadcastState();
+    }
+    const moving = !!(k.w||k.a||k.s||k.d);
+    if (local.alive) maybeStepSound('local', local, moving, local.grounded);
+    for (const [id,e] of remote) if (e.alive) maybeStepSound(id, e, false, true);
+    updateHud();
+  }
+  renderFrame();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+
+</script>
+</body>
+</html>
